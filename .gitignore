@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Virtual env / local runtimes
+.venv/
+python311/
+.dgl/
+
+# Large raw data and archives
+data/raw/
+*.zip
+
+# Generated outputs
+outputs/
+data/splits/
+
+# Local/editor
+.idea/
+.vscode/
+*.log
+
+# Source materials (not code)
+*.docx
+*.pptx
+get-pip.py
+新建文件夹/
