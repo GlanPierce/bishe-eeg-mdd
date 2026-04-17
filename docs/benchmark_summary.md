@@ -15,6 +15,7 @@
 | GNN (Signed PCC+PLV, broad, 单图融合) | 0.8238 +/- 0.1437 | 0.8125 +/- 0.1505 | 0.8544 +/- 0.1209 | 0.7986 +/- 0.1707 |
 | GNN (Dual-Graph PCC+PLV, broad, 模型融合) | 0.8167 +/- 0.1167 | 0.8000 +/- 0.1190 | 0.8183 +/- 0.1509 | 0.8111 +/- 0.1975 |
 | GNN (Dual-Graph Multiband: PCC + PLV(theta/alpha/beta), 动态融合) | 0.8357 +/- 0.1057 | 0.8250 +/- 0.1083 | 0.8373 +/- 0.1424 | 0.8556 +/- 0.1432 |
+| GNN (Dual-Graph Multiband + per-node top-k 选边 + 正负边分保留) | 0.8524 +/- 0.0497 | 0.8333 +/- 0.0645 | 0.8695 +/- 0.0533 | 0.8708 +/- 0.1491 |
 | GNN (Signed PCC+PLV, theta) | 0.8405 +/- 0.1339 | 0.8292 +/- 0.1425 | 0.8651 +/- 0.1158 | 0.7986 +/- 0.1707 |
 | GNN (Signed PCC+PLV, alpha) | 0.8238 +/- 0.1437 | 0.8125 +/- 0.1505 | 0.8544 +/- 0.1209 | 0.8194 +/- 0.1788 |
 | GNN (Signed PCC+PLV, beta) | 0.8238 +/- 0.1437 | 0.8125 +/- 0.1505 | 0.8487 +/- 0.1220 | 0.8083 +/- 0.1776 |
@@ -30,6 +31,12 @@
 2. 这说明“把 PLV 分成 theta/alpha/beta 并让模型动态选权重”是有效的，能减少宽频 PLV 把有用频段信息平均掉的问题。
 3. 多频段动态融合的平均权重：`PCC=0.3103, theta=0.2438, alpha=0.2274, beta=0.2185`，说明模型不是单押某一频段，而是在样本层面做自适应组合。
 4. 与“单 PCC GNN”相比，多频段版本在 AUC 上明显更高（`0.8556` vs `0.7972`），但 Acc/BalAcc/F1 仍略低于单 PCC，提示下一步应优化决策阈值/校准以把排序优势转成分类优势。
+5. 引入“per-node top-k + 正负边分保留”后，多频段 dual-graph 指标进一步提升，且方差明显下降：  
+   - Accuracy: `0.8357 -> 0.8524`  
+   - Balanced Accuracy: `0.8250 -> 0.8333`  
+   - F1: `0.8373 -> 0.8695`  
+   - ROC-AUC: `0.8556 -> 0.8708`  
+   - Acc 标准差: `0.1057 -> 0.0497`
 
 ## 结果文件对应
 - Non-GNN: `outputs/metrics/nongnn_cv10_metrics.json`
@@ -42,6 +49,7 @@
 - 多频段动态权重（动态阈值）: `outputs/metrics/gnn_multiband_fusion_cv10_metrics_valthr_latest.json`
 - Dual-Graph PCC+PLV broad（本次新增）: `outputs/metrics/runs/dualgraph_full_cv10/gnn_dualgraph_pcc_plv_broad.json`
 - Dual-Graph Multiband PCC+PLV(theta/alpha/beta)（本次新增）: `outputs/metrics/runs/dualgraph_multiband_full_cv10/gnn_dualgraph_multiband_pcc_plv_tab_cv10.json`
+- Dual-Graph Multiband + per-node top-k（本次新增）: `outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json`
 
 ## 运行记录
 - 统一入口运行ID：`dualgraph_full_cv10`
@@ -50,3 +58,5 @@
   - `outputs/metrics/runs/dualgraph_full_cv10/benchmark_summary.md`
 - 多频段动态融合运行：
   - `outputs/metrics/runs/dualgraph_multiband_full_cv10/gnn_dualgraph_multiband_pcc_plv_tab_cv10.json`
+- Top-k 选边多频段运行：
+  - `outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json`

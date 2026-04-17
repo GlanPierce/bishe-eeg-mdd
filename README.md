@@ -35,6 +35,20 @@
 .\.venv\Scripts\python.exe .\src\train_nongnn_cv10.py
 ```
 
+`build_graphs.py` 现在支持两种选边策略：
+- `global_quantile`（原策略）：全局分位数阈值
+- `per_node_topk`（新策略）：每个节点 top-k 选边；对 signed 图可分开保留正/负边
+
+示例（推荐用于 signed PCC 图）：
+```powershell
+.\.venv\Scripts\python.exe .\src\build_graphs.py `
+  --edge-mode pcc `
+  --edge-selection per_node_topk `
+  --top-k-per-node 4 `
+  --signed-topk-split `
+  --out-dir data/processed/graphs_pcc_topk_task
+```
+
 ## 统一模板入口（推荐）
 ```powershell
 .\.venv\Scripts\python.exe .\src\run_benchmarks.py

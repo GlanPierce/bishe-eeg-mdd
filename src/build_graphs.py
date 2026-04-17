@@ -18,6 +18,9 @@ class GraphConfig:
     h_freq: float = 45.0
     pcc_quantile: float = 0.8
     min_edges: int = 30
+    edge_selection: str = "global_quantile"  # global_quantile | per_node_topk
+    top_k_per_node: int = 4
+    signed_topk_split: bool = True  # keep positive/negative edges separately for signed matrices
     edge_mode: str = "pcc"  # pcc | plv | pcc_plv
     fusion_alpha: float = 0.5  # used when edge_mode == pcc_plv
     plv_band: str = "broad"  # broad | theta | alpha | beta
@@ -103,6 +106,67 @@ def _build_sparse_edges(
     return edge_index, edge_weight
 
 
+def _build_topk_edges(
+    weight_matrix: np.ndarray,
+    top_k: int,
+    signed_split: bool,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Build sparse undirected edges by per-node top-k policy.
+
+    - signed_split=True: keep top-k positive and top-k negative edges per node separately.
+    - signed_split=False: keep top-k strongest edges per node (positive-only case like PLV).
+    """
+    w = np.nan_to_num(weight_matrix, nan=0.0)
+    np.fill_diagonal(w, 0.0)
+    n = int(w.shape[0])
+    if n <= 1:
+        return np.zeros((2, 0), dtype=np.int64), np.zeros((0,), dtype=np.float32)
+
+    k = max(1, int(top_k))
+    undirected: dict[tuple[int, int], float] = {}
+
+    for i in range(n):
+        row = w[i]
+        if signed_split:
+            pos_idx = np.where(row > 0.0)[0]
+            if pos_idx.size > 0:
+                pos_vals = row[pos_idx]
+                order = np.argsort(pos_vals)[::-1][:k]
+                for j in pos_idx[order]:
+                    a, b = (i, int(j)) if i < int(j) else (int(j), i)
+                    if a != b:
+                        undirected[(a, b)] = float(w[a, b])
+
+            neg_idx = np.where(row < 0.0)[0]
+            if neg_idx.size > 0:
+                neg_vals = np.abs(row[neg_idx])
+                order = np.argsort(neg_vals)[::-1][:k]
+                for j in neg_idx[order]:
+                    a, b = (i, int(j)) if i < int(j) else (int(j), i)
+                    if a != b:
+                        undirected[(a, b)] = float(w[a, b])
+        else:
+            nz_idx = np.where(row > 0.0)[0]
+            if nz_idx.size == 0:
+                continue
+            vals = row[nz_idx]
+            order = np.argsort(vals)[::-1][:k]
+            for j in nz_idx[order]:
+                a, b = (i, int(j)) if i < int(j) else (int(j), i)
+                if a != b:
+                    undirected[(a, b)] = float(w[a, b])
+
+    if not undirected:
+        return np.zeros((2, 0), dtype=np.int64), np.zeros((0,), dtype=np.float32)
+
+    src = np.array([ab[0] for ab in undirected.keys()], dtype=np.int64)
+    dst = np.array([ab[1] for ab in undirected.keys()], dtype=np.int64)
+    ew = np.array([v for v in undirected.values()], dtype=np.float32)
+    edge_index = np.vstack([np.concatenate([src, dst]), np.concatenate([dst, src])]).astype(np.int64)
+    edge_weight = np.concatenate([ew, ew]).astype(np.float32)
+    return edge_index, edge_weight
+
+
 def _pcc_matrix(data: np.ndarray) -> np.ndarray:
     corr = np.corrcoef(data)
     return np.nan_to_num(corr, nan=0.0)
@@ -135,6 +199,9 @@ def build_edges(
     edge_mode: str,
     quantile: float,
     min_edges: int,
+    edge_selection: str,
+    top_k_per_node: int,
+    signed_topk_split: bool,
     fusion_alpha: float,
     plv_band: str,
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -143,12 +210,16 @@ def build_edges(
     pcc_score = pcc * pcc
 
     if edge_mode == "pcc":
+        if edge_selection == "per_node_topk":
+            return _build_topk_edges(pcc, top_k=top_k_per_node, signed_split=signed_topk_split)
         return _build_sparse_edges(pcc_score, quantile, min_edges, weight_matrix=pcc)
 
     plv_data = _plv_input_data(data, sfreq, plv_band)
     plv = _plv_matrix(plv_data)
     if edge_mode == "plv":
         # PLV naturally lies in [0,1], non-negative edge weights.
+        if edge_selection == "per_node_topk":
+            return _build_topk_edges(plv, top_k=top_k_per_node, signed_split=False)
         return _build_sparse_edges(plv, quantile, min_edges, weight_matrix=plv)
 
     if edge_mode == "pcc_plv":
@@ -157,6 +228,8 @@ def build_edges(
         plv_signed = (2.0 * plv) - 1.0
         fused_signed = (a * pcc) + ((1.0 - a) * plv_signed)
         fused_score = fused_signed * fused_signed
+        if edge_selection == "per_node_topk":
+            return _build_topk_edges(fused_signed, top_k=top_k_per_node, signed_split=signed_topk_split)
         return _build_sparse_edges(fused_score, quantile, min_edges, weight_matrix=fused_signed)
 
     raise ValueError(f"Unknown edge_mode: {edge_mode}")
@@ -183,6 +256,9 @@ def build_graph_for_row(row: pd.Series, cfg: GraphConfig) -> dict[str, object]:
         cfg.edge_mode,
         cfg.pcc_quantile,
         cfg.min_edges,
+        cfg.edge_selection,
+        cfg.top_k_per_node,
+        cfg.signed_topk_split,
         cfg.fusion_alpha,
         cfg.plv_band,
     )
@@ -240,6 +316,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pcc-quantile", type=float, default=0.8)
     parser.add_argument("--min-edges", type=int, default=30)
     parser.add_argument(
+        "--edge-selection",
+        type=str,
+        default="global_quantile",
+        choices=["global_quantile", "per_node_topk"],
+        help="Edge selection policy: global quantile threshold or per-node top-k.",
+    )
+    parser.add_argument(
+        "--top-k-per-node",
+        type=int,
+        default=4,
+        help="Used when edge-selection=per_node_topk.",
+    )
+    parser.add_argument(
+        "--signed-topk-split",
+        action="store_true",
+        help="Used when edge-selection=per_node_topk on signed matrices: keep positive/negative edges separately.",
+    )
+    parser.add_argument(
+        "--no-signed-topk-split",
+        dest="signed_topk_split",
+        action="store_false",
+        help="Disable separate positive/negative top-k selection for signed matrices.",
+    )
+    parser.set_defaults(signed_topk_split=True)
+    parser.add_argument(
         "--edge-mode",
         type=str,
         default="pcc",
@@ -268,6 +369,9 @@ def main() -> int:
         max_seconds=args.max_seconds,
         pcc_quantile=args.pcc_quantile,
         min_edges=args.min_edges,
+        edge_selection=args.edge_selection,
+        top_k_per_node=args.top_k_per_node,
+        signed_topk_split=args.signed_topk_split,
         edge_mode=args.edge_mode,
         fusion_alpha=args.fusion_alpha,
         plv_band=args.plv_band,
@@ -320,6 +424,9 @@ def main() -> int:
             "h_freq": cfg.h_freq,
             "pcc_quantile": cfg.pcc_quantile,
             "min_edges": cfg.min_edges,
+            "edge_selection": cfg.edge_selection,
+            "top_k_per_node": cfg.top_k_per_node,
+            "signed_topk_split": cfg.signed_topk_split,
             "edge_mode": cfg.edge_mode,
             "fusion_alpha": cfg.fusion_alpha,
             "plv_band": cfg.plv_band,
