@@ -123,8 +123,8 @@ def collate_multiband(batch: list[dict[str, object]]) -> dict[str, object]:
     }
 
 
-def calc_metrics(y_true: np.ndarray, prob_pos: np.ndarray) -> dict[str, object]:
-    pred = (prob_pos >= 0.5).astype(np.int64)
+def calc_metrics(y_true: np.ndarray, prob_pos: np.ndarray, threshold: float = 0.5) -> dict[str, object]:
+    pred = (prob_pos >= threshold).astype(np.int64)
     return {
         "accuracy": float(accuracy_score(y_true, pred)),
         "balanced_accuracy": float(balanced_accuracy_score(y_true, pred)),
@@ -132,6 +132,18 @@ def calc_metrics(y_true: np.ndarray, prob_pos: np.ndarray) -> dict[str, object]:
         "roc_auc": float(roc_auc_score(y_true, prob_pos)) if len(np.unique(y_true)) == 2 else None,
         "confusion_matrix": confusion_matrix(y_true, pred).tolist(),
     }
+
+
+def select_threshold_by_balacc(y_true: np.ndarray, prob_pos: np.ndarray) -> float:
+    best_t = 0.5
+    best_bal = -1.0
+    for t in np.arange(0.05, 0.951, 0.01):
+        pred = (prob_pos >= t).astype(np.int64)
+        bal = float(balanced_accuracy_score(y_true, pred))
+        if bal > best_bal:
+            best_bal = bal
+            best_t = float(t)
+    return best_t
 
 
 def train_one_epoch(
@@ -234,6 +246,13 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("outputs/metrics/gnn_multiband_fusion_cv10_metrics_latest.json"),
     )
+    p.add_argument(
+        "--threshold-strategy",
+        type=str,
+        default="val_balacc",
+        choices=["fixed", "val_balacc"],
+        help="fixed: use 0.5, val_balacc: choose threshold on val set by max balanced accuracy.",
+    )
     return p.parse_args()
 
 
@@ -305,8 +324,13 @@ def main() -> int:
         if best_state is not None:
             model.load_state_dict(best_state)
 
+        y_val_final, p_val_final, _ = predict_with_weights(model, val_loader, device)
         y_test, p_test, w_test = predict_with_weights(model, test_loader, device)
-        metrics = calc_metrics(y_test, p_test)
+        if args.threshold_strategy == "val_balacc":
+            threshold = select_threshold_by_balacc(y_val_final, p_val_final)
+        else:
+            threshold = 0.5
+        metrics = calc_metrics(y_test, p_test, threshold=threshold)
         w_mean = w_test.mean(axis=0)
         w_mdd = w_test[y_test == 1].mean(axis=0) if np.any(y_test == 1) else np.full((4,), np.nan)
         w_h = w_test[y_test == 0].mean(axis=0) if np.any(y_test == 0) else np.full((4,), np.nan)
@@ -317,6 +341,7 @@ def main() -> int:
             "n_val": int(len(val_ds)),
             "n_test": int(len(test_ds)),
             "best_val_balanced_accuracy": best_val_bal,
+            "selected_threshold": float(threshold),
             "test_metrics": metrics,
             "weights_mean": {
                 "pcc": float(w_mean[0]),
@@ -373,6 +398,7 @@ def main() -> int:
             "seed": args.seed,
             "lambda_prior": args.lambda_prior,
             "prior_margin": args.prior_margin,
+            "threshold_strategy": args.threshold_strategy,
         },
         "aggregate": aggregate,
         "fusion_weight_aggregate": weight_agg,
