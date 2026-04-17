@@ -12,6 +12,7 @@ python311/
 
 # Large raw data and archives
 data/raw/
+data/processed/
 *.zip
 
 # Generated outputs

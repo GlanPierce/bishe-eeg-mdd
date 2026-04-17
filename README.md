@@ -8,6 +8,7 @@
 
 ## 项目结构
 - `src/train_baseline.py`：基线训练主脚本（特征提取 + 切分 + 训练 + 指标输出）
+- `src/build_graphs.py`：PCC 脑网络构图脚本（输出图数据供 GNN 使用）
 - `docs/initial_model_report.md`：初步模型结果报告
 - `docs/10_day_check_plan.md`：十天代码检查执行路径
 - `requirements.txt`：依赖清单
@@ -20,6 +21,7 @@
 ```powershell
 .\.venv\Scripts\python.exe .\env_check.py
 .\.venv\Scripts\python.exe .\src\train_baseline.py
+.\.venv\Scripts\python.exe .\src\build_graphs.py
 ```
 
 ## 当前基线结果（测试集）
