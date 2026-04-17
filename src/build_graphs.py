@@ -8,7 +8,7 @@ from pathlib import Path
 import mne
 import numpy as np
 import pandas as pd
-from scipy.signal import welch
+from scipy.signal import hilbert, welch
 
 
 @dataclass(frozen=True)
@@ -18,6 +18,8 @@ class GraphConfig:
     h_freq: float = 45.0
     pcc_quantile: float = 0.8
     min_edges: int = 30
+    edge_mode: str = "pcc"  # pcc | plv | pcc_plv
+    fusion_alpha: float = 0.5  # used when edge_mode == pcc_plv
 
 
 BANDS: dict[str, tuple[float, float]] = {
@@ -52,41 +54,84 @@ def extract_node_features(data: np.ndarray, sfreq: float) -> np.ndarray:
     return np.concatenate(feats, axis=1)
 
 
-def build_pcc_edges(data: np.ndarray, quantile: float, min_edges: int) -> tuple[np.ndarray, np.ndarray]:
-    """Build sparse undirected edges from PCC matrix.
+def _build_sparse_edges(
+    score_matrix: np.ndarray,
+    quantile: float,
+    min_edges: int,
+    weight_matrix: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Build sparse undirected edges from a score matrix.
 
-    Returns:
-      edge_index: (2, E) int64
-      edge_weight: (E,) float32
+    score_matrix drives edge selection, weight_matrix provides actual edge weights.
     """
-    corr = np.corrcoef(data)
-    corr = np.nan_to_num(corr, nan=0.0)
-    np.fill_diagonal(corr, 0.0)
+    score_matrix = np.nan_to_num(score_matrix, nan=0.0)
+    np.fill_diagonal(score_matrix, 0.0)
+    if weight_matrix is None:
+        weight_matrix = score_matrix
+    weight_matrix = np.nan_to_num(weight_matrix, nan=0.0)
+    np.fill_diagonal(weight_matrix, 0.0)
 
-    n = corr.shape[0]
+    n = score_matrix.shape[0]
     triu_i, triu_j = np.triu_indices(n, k=1)
-    abs_vals = np.abs(corr[triu_i, triu_j])
-    if abs_vals.size == 0:
+    vals = score_matrix[triu_i, triu_j]
+    if vals.size == 0:
         return np.zeros((2, 0), dtype=np.int64), np.zeros((0,), dtype=np.float32)
 
-    thr = float(np.quantile(abs_vals, quantile))
-    keep_mask = abs_vals >= thr
+    thr = float(np.quantile(vals, quantile))
+    keep_mask = vals >= thr
 
     # Guardrail for tiny graphs where quantile can over-prune.
     if int(np.sum(keep_mask)) < min_edges:
-        order = np.argsort(abs_vals)[::-1]
-        topk = order[: min(min_edges, abs_vals.size)]
+        order = np.argsort(vals)[::-1]
+        topk = order[: min(min_edges, vals.size)]
         keep_mask = np.zeros_like(keep_mask, dtype=bool)
         keep_mask[topk] = True
 
     src = triu_i[keep_mask]
     dst = triu_j[keep_mask]
-    w = corr[src, dst]
+    w = weight_matrix[src, dst]
 
-    # Store both directions to simplify downstream PyG training.
     edge_index = np.vstack([np.concatenate([src, dst]), np.concatenate([dst, src])]).astype(np.int64)
     edge_weight = np.concatenate([w, w]).astype(np.float32)
     return edge_index, edge_weight
+
+
+def _pcc_matrix(data: np.ndarray) -> np.ndarray:
+    corr = np.corrcoef(data)
+    return np.nan_to_num(corr, nan=0.0)
+
+
+def _plv_matrix(data: np.ndarray) -> np.ndarray:
+    """Compute PLV matrix from channel time-series.
+
+    data shape: (n_channels, n_times)
+    """
+    analytic = hilbert(data, axis=1)
+    phase = np.angle(analytic)
+    phase_diff = phase[:, None, :] - phase[None, :, :]
+    plv = np.abs(np.mean(np.exp(1j * phase_diff), axis=2))
+    return np.nan_to_num(plv, nan=0.0)
+
+
+def build_edges(data: np.ndarray, edge_mode: str, quantile: float, min_edges: int, fusion_alpha: float) -> tuple[np.ndarray, np.ndarray]:
+    pcc = _pcc_matrix(data)
+    abs_pcc = np.abs(pcc)
+
+    if edge_mode == "pcc":
+        # Select by |PCC| and keep signed PCC as weight.
+        return _build_sparse_edges(abs_pcc, quantile, min_edges, weight_matrix=pcc)
+
+    plv = _plv_matrix(data)
+    if edge_mode == "plv":
+        # PLV naturally lies in [0,1], non-negative edge weights.
+        return _build_sparse_edges(plv, quantile, min_edges, weight_matrix=plv)
+
+    if edge_mode == "pcc_plv":
+        a = float(np.clip(fusion_alpha, 0.0, 1.0))
+        fused = a * abs_pcc + (1.0 - a) * plv
+        return _build_sparse_edges(fused, quantile, min_edges, weight_matrix=fused)
+
+    raise ValueError(f"Unknown edge_mode: {edge_mode}")
 
 
 def read_eeg(file_path: Path, cfg: GraphConfig) -> tuple[np.ndarray, float, list[str]]:
@@ -104,7 +149,7 @@ def build_graph_for_row(row: pd.Series, cfg: GraphConfig) -> dict[str, object]:
     file_path = Path(str(row["file_path"]))
     data, sfreq, ch_names = read_eeg(file_path, cfg)
     x = extract_node_features(data, sfreq).astype(np.float32)
-    edge_index, edge_weight = build_pcc_edges(data, cfg.pcc_quantile, cfg.min_edges)
+    edge_index, edge_weight = build_edges(data, cfg.edge_mode, cfg.pcc_quantile, cfg.min_edges, cfg.fusion_alpha)
 
     return {
         "subject_id": str(row["subject_id"]),
@@ -158,6 +203,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-seconds", type=int, default=120)
     parser.add_argument("--pcc-quantile", type=float, default=0.8)
     parser.add_argument("--min-edges", type=int, default=30)
+    parser.add_argument(
+        "--edge-mode",
+        type=str,
+        default="pcc",
+        choices=["pcc", "plv", "pcc_plv"],
+        help="Connectivity mode for graph edges.",
+    )
+    parser.add_argument(
+        "--fusion-alpha",
+        type=float,
+        default=0.5,
+        help="Used when edge-mode=pcc_plv. fused = alpha*|PCC| + (1-alpha)*PLV.",
+    )
     return parser.parse_args()
 
 
@@ -167,6 +225,8 @@ def main() -> int:
         max_seconds=args.max_seconds,
         pcc_quantile=args.pcc_quantile,
         min_edges=args.min_edges,
+        edge_mode=args.edge_mode,
+        fusion_alpha=args.fusion_alpha,
     )
 
     split_csv = Path(args.split_csv)
@@ -216,6 +276,8 @@ def main() -> int:
             "h_freq": cfg.h_freq,
             "pcc_quantile": cfg.pcc_quantile,
             "min_edges": cfg.min_edges,
+            "edge_mode": cfg.edge_mode,
+            "fusion_alpha": cfg.fusion_alpha,
             "bands": BANDS,
         },
     }
