@@ -110,3 +110,22 @@
 ```
 
 统一 benchmark 入口也已支持双路模型（可用 `--skip-dualgraph` 跳过）。
+
+## 当前最佳配置（2026-04）
+- 模型：Dual-Graph Multiband（PCC + PLV theta/alpha/beta）
+- 构图：`per_node_topk` + `signed_topk_split`
+- 10-fold 结果：Acc `0.8524 +/- 0.0497`，BalAcc `0.8333 +/- 0.0645`，F1 `0.8695 +/- 0.0533`，AUC `0.8708 +/- 0.1491`
+
+复现命令：
+```powershell
+# 1) PCC top-k 图
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode pcc --edge-selection per_node_topk --top-k-per-node 4 --signed-topk-split --out-dir data/processed/graphs_pcc_topk_task
+
+# 2) PLV top-k 图（theta/alpha/beta）
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band theta --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_theta_topk_task
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band alpha --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_alpha_topk_task
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band beta  --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_beta_topk_task
+
+# 3) 训练多频段动态融合
+.\.venv\Scripts\python.exe .\src\train_gnn_dualgraph_multiband_cv10.py --pcc-manifest data/processed/graphs_pcc_topk_task/manifest.csv --theta-manifest data/processed/graphs_plv_theta_topk_task/manifest.csv --alpha-manifest data/processed/graphs_plv_alpha_topk_task/manifest.csv --beta-manifest data/processed/graphs_plv_beta_topk_task/manifest.csv --out-path outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json --experiment-name gnn_dualgraph_multiband_topk_cv10
+```
