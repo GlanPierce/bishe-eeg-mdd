@@ -76,3 +76,23 @@
 1. 引入连接矩阵特征（PCC/PLV）并构图。
 2. 引入 GCN/GAT（对齐开题报告路线）。
 3. 做时空融合（GCN + 时序模块）与可解释性分析。
+
+## Dual-Graph PCC+PLV（不压缩边权）
+- 新增训练入口：`src/train_gnn_dualgraph_cv10.py`
+- 思路：PCC 图和 PLV 图分别编码，模型内部学习融合权重，不再使用 `alpha*PCC + (1-alpha)*PLV` 的手工边权压缩。
+
+示例流程：
+```powershell
+# 1) 构建 PCC 图
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode pcc --out-dir data/processed/graphs_pcc_task
+
+# 2) 构建 PLV 图（broad）
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band broad --out-dir data/processed/graphs_plv_broad_task
+
+# 3) 训练双路融合模型（10-fold）
+.\.venv\Scripts\python.exe .\src\train_gnn_dualgraph_cv10.py `
+  --pcc-manifest data/processed/graphs_pcc_task/manifest.csv `
+  --plv-manifest data/processed/graphs_plv_broad_task/manifest.csv
+```
+
+统一 benchmark 入口也已支持双路模型（可用 `--skip-dualgraph` 跳过）。

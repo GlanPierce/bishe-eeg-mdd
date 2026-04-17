@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import argparse
 import json
@@ -31,6 +31,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output-root", type=Path, default=Path("outputs/metrics/runs"))
     p.add_argument("--skip-nongnn", action="store_true")
     p.add_argument("--skip-gnn", action="store_true")
+    p.add_argument("--skip-dualgraph", action="store_true")
     p.add_argument("--skip-multiband", action="store_true")
     return p.parse_args()
 
@@ -151,6 +152,56 @@ def main() -> int:
                 )
             )
 
+    # Dual-graph fusion (PCC + PLV, no manual edge-weight compression)
+    if not args.skip_dualgraph:
+        pcc_manifest = Path("data/processed/graphs_pcc_task/manifest.csv")
+        plv_manifest = Path("data/processed/graphs_plv_broad_task/manifest.csv")
+        if pcc_manifest.exists() and plv_manifest.exists():
+            out_dual = run_dir / "gnn_dualgraph_pcc_plv_broad.json"
+            run_cmd(
+                [
+                    py,
+                    "src/train_gnn_dualgraph_cv10.py",
+                    "--pcc-manifest",
+                    str(pcc_manifest),
+                    "--plv-manifest",
+                    str(plv_manifest),
+                    "--seed",
+                    str(args.seed),
+                    "--folds",
+                    str(args.folds),
+                    "--epochs",
+                    str(args.epochs),
+                    "--batch-size",
+                    str(args.batch_size),
+                    "--lr",
+                    str(args.lr),
+                    "--weight-decay",
+                    str(args.weight_decay),
+                    "--hidden-dim",
+                    str(args.hidden_dim),
+                    "--dropout",
+                    str(args.dropout),
+                    "--out-path",
+                    str(out_dual),
+                    "--experiment-name",
+                    "gnn_dualgraph_pcc_plv_broad",
+                ]
+            )
+            records.append(
+                to_std_record(
+                    run_id=run_id,
+                    name="gnn_dualgraph_pcc_plv_broad",
+                    category="gnn_dual_graph",
+                    source_file=out_dual,
+                    aggregate=extract_agg(out_dual),
+                )
+            )
+        else:
+            print("! skip dualgraph: missing manifest(s)")
+            print(f"  - {pcc_manifest} exists={pcc_manifest.exists()}")
+            print(f"  - {plv_manifest} exists={plv_manifest.exists()}")
+
     # Multiband fusion
     if not args.skip_multiband:
         mb_fixed = run_dir / "gnn_multiband_dynamic_weight_fixed_thr.json"
@@ -255,7 +306,11 @@ def main() -> int:
     ]
     for r in records:
         md_lines.append(
-            "| {name} | {category} | {acc:.4f} ± {accs:.4f} | {bal:.4f} ± {bals:.4f} | {f1:.4f} ± {f1s:.4f} | {auc:.4f} ± {aucs:.4f} |".format(
+            (
+                "| {name} | {category} | {acc:.4f} +/- {accs:.4f} | "
+                "{bal:.4f} +/- {bals:.4f} | {f1:.4f} +/- {f1s:.4f} | "
+                "{auc:.4f} +/- {aucs:.4f} |"
+            ).format(
                 name=r["name"],
                 category=r["category"],
                 acc=r["accuracy_mean"],
@@ -285,3 +340,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
