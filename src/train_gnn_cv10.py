@@ -25,17 +25,22 @@ from torch_geometric.nn import GCNConv, global_mean_pool
 class GCNClassifier(nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int = 32, dropout: float = 0.2) -> None:
         super().__init__()
-        self.conv1 = GCNConv(in_dim, hidden_dim)
-        self.conv2 = GCNConv(hidden_dim, hidden_dim)
+        self.conv1_pos = GCNConv(in_dim, hidden_dim)
+        self.conv1_neg = GCNConv(in_dim, hidden_dim)
+        self.conv2_pos = GCNConv(hidden_dim, hidden_dim)
+        self.conv2_neg = GCNConv(hidden_dim, hidden_dim)
         self.dropout = nn.Dropout(dropout)
         self.fc = nn.Linear(hidden_dim, 2)
 
     def forward(self, data: Data) -> torch.Tensor:
         x, edge_index, edge_weight, batch = data.x, data.edge_index, data.edge_attr, data.batch
-        x = self.conv1(x, edge_index, edge_weight=edge_weight)
+        ew_pos = torch.clamp(edge_weight, min=0.0)
+        ew_neg = torch.clamp(-edge_weight, min=0.0)
+
+        x = self.conv1_pos(x, edge_index, edge_weight=ew_pos) - self.conv1_neg(x, edge_index, edge_weight=ew_neg)
         x = F.relu(x)
         x = self.dropout(x)
-        x = self.conv2(x, edge_index, edge_weight=edge_weight)
+        x = self.conv2_pos(x, edge_index, edge_weight=ew_pos) - self.conv2_neg(x, edge_index, edge_weight=ew_neg)
         x = F.relu(x)
         x = global_mean_pool(x, batch)
         x = self.dropout(x)
@@ -46,7 +51,7 @@ def load_graph_npz(npz_path: Path) -> Data:
     d = np.load(npz_path, allow_pickle=True)
     x = torch.tensor(d["x"], dtype=torch.float32)
     edge_index = torch.tensor(d["edge_index"], dtype=torch.long)
-    edge_weight = torch.tensor(np.abs(d["edge_weight"]) + 1e-6, dtype=torch.float32)
+    edge_weight = torch.tensor(d["edge_weight"], dtype=torch.float32)
     y = torch.tensor(d["y"], dtype=torch.long)
     return Data(x=x, edge_index=edge_index, edge_attr=edge_weight, y=y)
 
