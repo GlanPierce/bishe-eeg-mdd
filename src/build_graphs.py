@@ -20,6 +20,7 @@ class GraphConfig:
     min_edges: int = 30
     edge_mode: str = "pcc"  # pcc | plv | pcc_plv
     fusion_alpha: float = 0.5  # used when edge_mode == pcc_plv
+    plv_band: str = "broad"  # broad | theta | alpha | beta
 
 
 BANDS: dict[str, tuple[float, float]] = {
@@ -28,6 +29,12 @@ BANDS: dict[str, tuple[float, float]] = {
     "alpha": (8.0, 13.0),
     "beta": (13.0, 30.0),
     "gamma": (30.0, 45.0),
+}
+
+PLV_BANDS: dict[str, tuple[float, float]] = {
+    "theta": (4.0, 8.0),
+    "alpha": (8.0, 13.0),
+    "beta": (13.0, 30.0),
 }
 
 
@@ -113,7 +120,24 @@ def _plv_matrix(data: np.ndarray) -> np.ndarray:
     return np.nan_to_num(plv, nan=0.0)
 
 
-def build_edges(data: np.ndarray, edge_mode: str, quantile: float, min_edges: int, fusion_alpha: float) -> tuple[np.ndarray, np.ndarray]:
+def _plv_input_data(data: np.ndarray, sfreq: float, plv_band: str) -> np.ndarray:
+    if plv_band == "broad":
+        return data
+    if plv_band not in PLV_BANDS:
+        raise ValueError(f"Unknown plv_band: {plv_band}")
+    fmin, fmax = PLV_BANDS[plv_band]
+    return mne.filter.filter_data(data, sfreq=sfreq, l_freq=fmin, h_freq=fmax, verbose="ERROR")
+
+
+def build_edges(
+    data: np.ndarray,
+    sfreq: float,
+    edge_mode: str,
+    quantile: float,
+    min_edges: int,
+    fusion_alpha: float,
+    plv_band: str,
+) -> tuple[np.ndarray, np.ndarray]:
     pcc = _pcc_matrix(data)
     # Use squared magnitude for sparse edge selection while keeping signed edge weights.
     pcc_score = pcc * pcc
@@ -121,7 +145,8 @@ def build_edges(data: np.ndarray, edge_mode: str, quantile: float, min_edges: in
     if edge_mode == "pcc":
         return _build_sparse_edges(pcc_score, quantile, min_edges, weight_matrix=pcc)
 
-    plv = _plv_matrix(data)
+    plv_data = _plv_input_data(data, sfreq, plv_band)
+    plv = _plv_matrix(plv_data)
     if edge_mode == "plv":
         # PLV naturally lies in [0,1], non-negative edge weights.
         return _build_sparse_edges(plv, quantile, min_edges, weight_matrix=plv)
@@ -152,7 +177,15 @@ def build_graph_for_row(row: pd.Series, cfg: GraphConfig) -> dict[str, object]:
     file_path = Path(str(row["file_path"]))
     data, sfreq, ch_names = read_eeg(file_path, cfg)
     x = extract_node_features(data, sfreq).astype(np.float32)
-    edge_index, edge_weight = build_edges(data, cfg.edge_mode, cfg.pcc_quantile, cfg.min_edges, cfg.fusion_alpha)
+    edge_index, edge_weight = build_edges(
+        data,
+        sfreq,
+        cfg.edge_mode,
+        cfg.pcc_quantile,
+        cfg.min_edges,
+        cfg.fusion_alpha,
+        cfg.plv_band,
+    )
 
     return {
         "subject_id": str(row["subject_id"]),
@@ -219,6 +252,13 @@ def parse_args() -> argparse.Namespace:
         default=0.5,
         help="Used when edge-mode=pcc_plv. fused_signed = alpha*PCC + (1-alpha)*(2*PLV-1).",
     )
+    parser.add_argument(
+        "--plv-band",
+        type=str,
+        default="broad",
+        choices=["broad", "theta", "alpha", "beta"],
+        help="Frequency band used to compute PLV when edge-mode includes PLV.",
+    )
     return parser.parse_args()
 
 
@@ -230,6 +270,7 @@ def main() -> int:
         min_edges=args.min_edges,
         edge_mode=args.edge_mode,
         fusion_alpha=args.fusion_alpha,
+        plv_band=args.plv_band,
     )
 
     split_csv = Path(args.split_csv)
@@ -281,6 +322,7 @@ def main() -> int:
             "min_edges": cfg.min_edges,
             "edge_mode": cfg.edge_mode,
             "fusion_alpha": cfg.fusion_alpha,
+            "plv_band": cfg.plv_band,
             "bands": BANDS,
         },
     }
