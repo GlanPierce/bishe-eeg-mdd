@@ -35,6 +35,19 @@
 .\.venv\Scripts\python.exe .\src\train_nongnn_cv10.py
 ```
 
+## 统一模板入口（推荐）
+```powershell
+.\.venv\Scripts\python.exe .\src\run_benchmarks.py
+```
+
+- 统一入口会自动：
+  - 固定随机种子（默认 `seed=42`，可通过参数修改）
+  - 给每个实验生成唯一输出文件（避免覆盖）
+  - 产出统一字段的标准化汇总（便于横向对比）
+- 输出目录示例：
+  - `outputs/metrics/runs/benchmark_YYYYMMDDTHHMMSSZ_seed42/benchmark_summary.json`
+  - `outputs/metrics/runs/benchmark_YYYYMMDDTHHMMSSZ_seed42/benchmark_summary.md`
+
 ## 当前基线结果（测试集）
 - Accuracy: `0.9231`
 - Balanced Accuracy: `0.9167`

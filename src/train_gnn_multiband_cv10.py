@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -249,10 +250,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--threshold-strategy",
         type=str,
-        default="val_balacc",
+        default="fixed",
         choices=["fixed", "val_balacc"],
         help="fixed: use 0.5, val_balacc: choose threshold on val set by max balanced accuracy.",
     )
+    p.add_argument("--experiment-name", type=str, default="gnn_multiband_fusion_cv10")
     return p.parse_args()
 
 
@@ -385,6 +387,9 @@ def main() -> int:
         weight_agg[wk] = {"mean": float(np.nanmean(vals)), "std": float(np.nanstd(vals))}
 
     payload = {
+        "schema_version": "eeg_mdd_benchmark_v1",
+        "experiment_name": args.experiment_name,
+        "created_at_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "model": "MultiBandFusionModel",
         "device": str(device),
         "params": {
@@ -399,6 +404,12 @@ def main() -> int:
             "lambda_prior": args.lambda_prior,
             "prior_margin": args.prior_margin,
             "threshold_strategy": args.threshold_strategy,
+        },
+        "manifests": {
+            "pcc": str(args.pcc_manifest),
+            "theta": str(args.theta_manifest),
+            "alpha": str(args.alpha_manifest),
+            "beta": str(args.beta_manifest),
         },
         "aggregate": aggregate,
         "fusion_weight_aggregate": weight_agg,

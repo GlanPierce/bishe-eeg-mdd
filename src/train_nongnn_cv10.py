@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -45,6 +46,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--feature-csv", type=Path, default=Path("data/splits/task_feature_table.csv"))
     p.add_argument("--folds", type=int, default=10)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--out-path", type=Path, default=Path("outputs/metrics/nongnn_cv10_metrics.json"))
+    p.add_argument("--experiment-name", type=str, default="nongnn_cv10")
     return p.parse_args()
 
 
@@ -74,7 +77,11 @@ def main() -> int:
     }
 
     out: dict[str, object] = {
+        "schema_version": "eeg_mdd_benchmark_v1",
+        "experiment_name": args.experiment_name,
+        "created_at_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "params": {"folds": args.folds, "seed": args.seed},
+        "feature_csv": str(args.feature_csv),
         "n_samples": int(len(df)),
         "class_counts": df["label_name"].value_counts().to_dict(),
         "models": {},
@@ -111,11 +118,9 @@ def main() -> int:
             "fold_results": fold_results,
         }
 
-    out_dir = Path("outputs/metrics")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "nongnn_cv10_metrics.json"
-    out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nSaved: {out_path}")
+    args.out_path.parent.mkdir(parents=True, exist_ok=True)
+    args.out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nSaved: {args.out_path}")
     print("Done.")
     return 0
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -110,6 +111,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--hidden-dim", type=int, default=32)
     p.add_argument("--dropout", type=float, default=0.2)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--out-path", type=Path, default=Path("outputs/metrics/gnn_gcn_task_cv10_metrics.json"))
+    p.add_argument("--experiment-name", type=str, default="gnn_gcn_cv10")
     return p.parse_args()
 
 
@@ -189,8 +192,12 @@ def main() -> int:
         aggregate[mn] = {"mean": float(np.nanmean(vals)), "std": float(np.nanstd(vals))}
 
     payload = {
+        "schema_version": "eeg_mdd_benchmark_v1",
+        "experiment_name": args.experiment_name,
+        "created_at_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "model": "GCNClassifier",
         "device": str(device),
+        "manifest": str(args.manifest),
         "params": {
             "folds": args.folds,
             "epochs": args.epochs,
@@ -205,11 +212,9 @@ def main() -> int:
         "fold_results": fold_results,
     }
 
-    out_dir = Path("outputs/metrics")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "gnn_gcn_task_cv10_metrics.json"
-    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\nSaved: {out_path}")
+    args.out_path.parent.mkdir(parents=True, exist_ok=True)
+    args.out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\nSaved: {args.out_path}")
     print("Done.")
     return 0
 
