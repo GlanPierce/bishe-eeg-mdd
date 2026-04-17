@@ -115,11 +115,11 @@ def _plv_matrix(data: np.ndarray) -> np.ndarray:
 
 def build_edges(data: np.ndarray, edge_mode: str, quantile: float, min_edges: int, fusion_alpha: float) -> tuple[np.ndarray, np.ndarray]:
     pcc = _pcc_matrix(data)
-    abs_pcc = np.abs(pcc)
+    # Use squared magnitude for sparse edge selection while keeping signed edge weights.
+    pcc_score = pcc * pcc
 
     if edge_mode == "pcc":
-        # Select by |PCC| and keep signed PCC as weight.
-        return _build_sparse_edges(abs_pcc, quantile, min_edges, weight_matrix=pcc)
+        return _build_sparse_edges(pcc_score, quantile, min_edges, weight_matrix=pcc)
 
     plv = _plv_matrix(data)
     if edge_mode == "plv":
@@ -128,8 +128,11 @@ def build_edges(data: np.ndarray, edge_mode: str, quantile: float, min_edges: in
 
     if edge_mode == "pcc_plv":
         a = float(np.clip(fusion_alpha, 0.0, 1.0))
-        fused = a * abs_pcc + (1.0 - a) * plv
-        return _build_sparse_edges(fused, quantile, min_edges, weight_matrix=fused)
+        # Map PLV from [0,1] to [-1,1] to preserve signed fusion with PCC.
+        plv_signed = (2.0 * plv) - 1.0
+        fused_signed = (a * pcc) + ((1.0 - a) * plv_signed)
+        fused_score = fused_signed * fused_signed
+        return _build_sparse_edges(fused_score, quantile, min_edges, weight_matrix=fused_signed)
 
     raise ValueError(f"Unknown edge_mode: {edge_mode}")
 
@@ -214,7 +217,7 @@ def parse_args() -> argparse.Namespace:
         "--fusion-alpha",
         type=float,
         default=0.5,
-        help="Used when edge-mode=pcc_plv. fused = alpha*|PCC| + (1-alpha)*PLV.",
+        help="Used when edge-mode=pcc_plv. fused_signed = alpha*PCC + (1-alpha)*(2*PLV-1).",
     )
     return parser.parse_args()
 
