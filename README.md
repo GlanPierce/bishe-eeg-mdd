@@ -35,6 +35,20 @@
 .\.venv\Scripts\python.exe .\src\train_nongnn_cv10.py
 ```
 
+`build_graphs.py` 现在支持两种选边策略：
+- `global_quantile`（原策略）：全局分位数阈值
+- `per_node_topk`（新策略）：每个节点 top-k 选边；对 signed 图可分开保留正/负边
+
+示例（推荐用于 signed PCC 图）：
+```powershell
+.\.venv\Scripts\python.exe .\src\build_graphs.py `
+  --edge-mode pcc `
+  --edge-selection per_node_topk `
+  --top-k-per-node 4 `
+  --signed-topk-split `
+  --out-dir data/processed/graphs_pcc_topk_task
+```
+
 ## 统一模板入口（推荐）
 ```powershell
 .\.venv\Scripts\python.exe .\src\run_benchmarks.py
@@ -76,3 +90,42 @@
 1. 引入连接矩阵特征（PCC/PLV）并构图。
 2. 引入 GCN/GAT（对齐开题报告路线）。
 3. 做时空融合（GCN + 时序模块）与可解释性分析。
+
+## Dual-Graph PCC+PLV（不压缩边权）
+- 新增训练入口：`src/train_gnn_dualgraph_cv10.py`
+- 思路：PCC 图和 PLV 图分别编码，模型内部学习融合权重，不再使用 `alpha*PCC + (1-alpha)*PLV` 的手工边权压缩。
+
+示例流程：
+```powershell
+# 1) 构建 PCC 图
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode pcc --out-dir data/processed/graphs_pcc_task
+
+# 2) 构建 PLV 图（broad）
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band broad --out-dir data/processed/graphs_plv_broad_task
+
+# 3) 训练双路融合模型（10-fold）
+.\.venv\Scripts\python.exe .\src\train_gnn_dualgraph_cv10.py `
+  --pcc-manifest data/processed/graphs_pcc_task/manifest.csv `
+  --plv-manifest data/processed/graphs_plv_broad_task/manifest.csv
+```
+
+统一 benchmark 入口也已支持双路模型（可用 `--skip-dualgraph` 跳过）。
+
+## 当前最佳配置（2026-04）
+- 模型：Dual-Graph Multiband（PCC + PLV theta/alpha/beta）
+- 构图：`per_node_topk` + `signed_topk_split`
+- 10-fold 结果：Acc `0.8524 +/- 0.0497`，BalAcc `0.8333 +/- 0.0645`，F1 `0.8695 +/- 0.0533`，AUC `0.8708 +/- 0.1491`
+
+复现命令：
+```powershell
+# 1) PCC top-k 图
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode pcc --edge-selection per_node_topk --top-k-per-node 4 --signed-topk-split --out-dir data/processed/graphs_pcc_topk_task
+
+# 2) PLV top-k 图（theta/alpha/beta）
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band theta --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_theta_topk_task
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band alpha --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_alpha_topk_task
+.\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band beta  --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_beta_topk_task
+
+# 3) 训练多频段动态融合
+.\.venv\Scripts\python.exe .\src\train_gnn_dualgraph_multiband_cv10.py --pcc-manifest data/processed/graphs_pcc_topk_task/manifest.csv --theta-manifest data/processed/graphs_plv_theta_topk_task/manifest.csv --alpha-manifest data/processed/graphs_plv_alpha_topk_task/manifest.csv --beta-manifest data/processed/graphs_plv_beta_topk_task/manifest.csv --out-path outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json --experiment-name gnn_dualgraph_multiband_topk_cv10
+```
