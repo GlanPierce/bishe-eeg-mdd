@@ -454,6 +454,18 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("outputs/metrics/runs/spatiotemporal_cv10/gnn_dualgraph_multiband_spatiotemporal_cv10.json"),
     )
+    p.add_argument(
+        "--save-checkpoint-dir",
+        type=Path,
+        default=None,
+        help="Optional directory to save best model checkpoint for each fold.",
+    )
+    p.add_argument(
+        "--checkpoint-prefix",
+        type=str,
+        default="dualgraph_multiband_spatiotemporal",
+        help="Filename prefix used when saving per-fold checkpoints.",
+    )
     p.add_argument("--experiment-name", type=str, default="gnn_dualgraph_multiband_spatiotemporal_cv10")
     return p.parse_args()
 
@@ -530,6 +542,37 @@ def main() -> int:
 
         if best_state is not None:
             model.load_state_dict(best_state)
+            if args.save_checkpoint_dir is not None:
+                args.save_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                ckpt_path = args.save_checkpoint_dir / f"{args.checkpoint_prefix}_fold{fold_no:02d}.pt"
+                torch.save(
+                    {
+                        "schema_version": "eeg_mdd_checkpoint_v1",
+                        "experiment_name": args.experiment_name,
+                        "fold": fold_no,
+                        "best_val_balanced_accuracy": float(best_val_bal),
+                        "model_class": "DualGraphMultiBandSpatioTemporalModel",
+                        "model_args": {
+                            "in_dim": in_dim,
+                            "hidden_dim": args.hidden_dim,
+                            "temporal_hidden": args.temporal_hidden,
+                            "dropout": args.dropout,
+                        },
+                        "train_args": {
+                            "seed": args.seed,
+                            "window_seconds": args.window_seconds,
+                            "step_seconds": args.step_seconds,
+                            "max_windows": args.max_windows,
+                            "pcc_quantile": args.pcc_quantile,
+                            "min_edges": args.min_edges,
+                            "top_k_per_node": args.top_k_per_node,
+                            "threshold_mode": args.threshold_mode,
+                            "threshold_metric": args.threshold_metric,
+                        },
+                        "state_dict": best_state,
+                    },
+                    ckpt_path,
+                )
 
         y_val_best, p_val_best, _ = predict(model, val_loader, device)
         if args.threshold_mode == "val_opt":
