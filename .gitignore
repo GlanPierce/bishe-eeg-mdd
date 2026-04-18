@@ -29,3 +29,13 @@ data/splits/
 *.pptx
 get-pip.py
 新建文件夹/
+
+# Visual Studio local cache
+.vs/
+~$*.docx
+
+# Local literature scratch files
+arxiv_mdd_eeg_*.csv
+mdd_eeg_summary_*.md
+MDD_EEG_arXiv_*
+

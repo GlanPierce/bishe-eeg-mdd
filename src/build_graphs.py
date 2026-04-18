@@ -21,7 +21,7 @@ class GraphConfig:
     edge_selection: str = "global_quantile"  # global_quantile | per_node_topk
     top_k_per_node: int = 4
     signed_topk_split: bool = True  # keep positive/negative edges separately for signed matrices
-    edge_mode: str = "pcc"  # pcc | plv | pcc_plv
+    edge_mode: str = "pcc"  # pcc | plv | wpli | dwpli | pcc_plv
     fusion_alpha: float = 0.5  # used when edge_mode == pcc_plv
     plv_band: str = "broad"  # broad | theta | alpha | beta
 
@@ -184,7 +184,42 @@ def _plv_matrix(data: np.ndarray) -> np.ndarray:
     return np.nan_to_num(plv, nan=0.0)
 
 
-def _plv_input_data(data: np.ndarray, sfreq: float, plv_band: str) -> np.ndarray:
+def _wpli_matrix(data: np.ndarray, debiased: bool = False) -> np.ndarray:
+    """Compute wPLI / dwPLI matrix from channel time-series.
+
+    data shape: (n_channels, n_times)
+    """
+    analytic = hilbert(data, axis=1)
+    n = int(analytic.shape[0])
+    out = np.zeros((n, n), dtype=np.float32)
+    for i in range(n):
+        out[i, i] = 1.0
+    for i in range(n):
+        zi = analytic[i]
+        for j in range(i + 1, n):
+            zj = analytic[j]
+            im = np.imag(zi * np.conj(zj)).astype(np.float64)
+            abs_sum = float(np.sum(np.abs(im)))
+            if abs_sum <= 1e-12:
+                val = 0.0
+            elif not debiased:
+                val = float(abs(np.sum(im)) / abs_sum)
+            else:
+                im_sum = float(np.sum(im))
+                im_sq_sum = float(np.sum(im * im))
+                num = (im_sum * im_sum) - im_sq_sum
+                den = (abs_sum * abs_sum) - im_sq_sum
+                if den <= 1e-12:
+                    val = 0.0
+                else:
+                    # dwPLI can be slightly negative in finite samples; clip for graph weight stability.
+                    val = float(np.clip(num / den, 0.0, 1.0))
+            out[i, j] = val
+            out[j, i] = val
+    return np.nan_to_num(out, nan=0.0)
+
+
+def _phase_input_data(data: np.ndarray, sfreq: float, plv_band: str) -> np.ndarray:
     if plv_band == "broad":
         return data
     if plv_band not in PLV_BANDS:
@@ -214,15 +249,30 @@ def build_edges(
             return _build_topk_edges(pcc, top_k=top_k_per_node, signed_split=signed_topk_split)
         return _build_sparse_edges(pcc_score, quantile, min_edges, weight_matrix=pcc)
 
-    plv_data = _plv_input_data(data, sfreq, plv_band)
-    plv = _plv_matrix(plv_data)
+    if edge_mode in {"plv", "wpli", "dwpli", "pcc_plv"}:
+        phase_data = _phase_input_data(data, sfreq, plv_band)
+
     if edge_mode == "plv":
+        plv = _plv_matrix(phase_data)
         # PLV naturally lies in [0,1], non-negative edge weights.
         if edge_selection == "per_node_topk":
             return _build_topk_edges(plv, top_k=top_k_per_node, signed_split=False)
         return _build_sparse_edges(plv, quantile, min_edges, weight_matrix=plv)
 
+    if edge_mode == "wpli":
+        wpli = _wpli_matrix(phase_data, debiased=False)
+        if edge_selection == "per_node_topk":
+            return _build_topk_edges(wpli, top_k=top_k_per_node, signed_split=False)
+        return _build_sparse_edges(wpli, quantile, min_edges, weight_matrix=wpli)
+
+    if edge_mode == "dwpli":
+        dwpli = _wpli_matrix(phase_data, debiased=True)
+        if edge_selection == "per_node_topk":
+            return _build_topk_edges(dwpli, top_k=top_k_per_node, signed_split=False)
+        return _build_sparse_edges(dwpli, quantile, min_edges, weight_matrix=dwpli)
+
     if edge_mode == "pcc_plv":
+        plv = _plv_matrix(phase_data)
         a = float(np.clip(fusion_alpha, 0.0, 1.0))
         # Map PLV from [0,1] to [-1,1] to preserve signed fusion with PCC.
         plv_signed = (2.0 * plv) - 1.0
@@ -344,7 +394,7 @@ def parse_args() -> argparse.Namespace:
         "--edge-mode",
         type=str,
         default="pcc",
-        choices=["pcc", "plv", "pcc_plv"],
+        choices=["pcc", "plv", "wpli", "dwpli", "pcc_plv"],
         help="Connectivity mode for graph edges.",
     )
     parser.add_argument(

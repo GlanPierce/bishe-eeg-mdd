@@ -1,62 +1,51 @@
-﻿# 10-Fold Benchmark 汇总
+﻿# Benchmark Summary (10-Fold, TASK subset)
 
-## 数据与评估设置
-- 数据：TASK 子集，共 61 名受试者（HC=28，MDD=33）。
-- 指标：10-fold `mean +/- std`。
-- 图模型：默认保留 signed 边信息（不丢失 PCC 的正负相关）。
-- 本次新增：`Dual-Graph PCC+PLV`（两路图分别编码，模型内学习融合权重，不做手工边权压缩）；并扩展了 `PCC + PLV(theta/alpha/beta)` 多频段动态融合版本。
+## Dataset and protocol
+- Subjects: 61 (`HC=28`, `MDD=33`)
+- Split: subject-level stratified 10-fold CV
+- Metrics: mean +/- std across folds
 
-## 全量对比结果
-| 方法 | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
+## Recommended models
+- Static recommendation: `Dual-Graph Multiband + per-node top-k + signed split`
+  - Acc `0.8524 +/- 0.0497`
+  - BalAcc `0.8333 +/- 0.0645`
+  - F1 `0.8695 +/- 0.0533`
+  - AUC `0.8708 +/- 0.1491`
+- Current best accuracy: `Static-best + BiGRU + window/step/max=16/8/12`
+  - Acc `0.8690 +/- 0.1243`
+  - BalAcc `0.8667 +/- 0.1247`
+  - F1 `0.8794 +/- 0.1226`
+  - AUC `0.8667 +/- 0.1296`
+
+## Core comparison table
+| Method | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
 |---|---:|---:|---:|---:|
 | Non-GNN (LogisticRegression) | 0.8690 +/- 0.0995 | 0.8583 +/- 0.1057 | 0.8816 +/- 0.0984 | 0.8500 +/- 0.1262 |
 | Non-GNN (RandomForest) | 0.8690 +/- 0.0659 | 0.8500 +/- 0.0816 | 0.8781 +/- 0.0702 | 0.9222 +/- 0.0911 |
-| GNN (Signed PCC, 单PCC) | 0.8405 +/- 0.1339 | 0.8292 +/- 0.1425 | 0.8651 +/- 0.1158 | 0.7972 +/- 0.1757 |
-| GNN (Signed PCC+PLV, broad, 单图融合) | 0.8238 +/- 0.1437 | 0.8125 +/- 0.1505 | 0.8544 +/- 0.1209 | 0.7986 +/- 0.1707 |
-| GNN (Dual-Graph PCC+PLV, broad, 模型融合) | 0.8167 +/- 0.1167 | 0.8000 +/- 0.1190 | 0.8183 +/- 0.1509 | 0.8111 +/- 0.1975 |
-| GNN (Dual-Graph Multiband: PCC + PLV(theta/alpha/beta), 动态融合) | 0.8357 +/- 0.1057 | 0.8250 +/- 0.1083 | 0.8373 +/- 0.1424 | 0.8556 +/- 0.1432 |
-| GNN (Dual-Graph Multiband + per-node top-k 选边 + 正负边分保留) | 0.8524 +/- 0.0497 | 0.8333 +/- 0.0645 | 0.8695 +/- 0.0533 | 0.8708 +/- 0.1491 |
-| GNN (Signed PCC+PLV, theta) | 0.8405 +/- 0.1339 | 0.8292 +/- 0.1425 | 0.8651 +/- 0.1158 | 0.7986 +/- 0.1707 |
-| GNN (Signed PCC+PLV, alpha) | 0.8238 +/- 0.1437 | 0.8125 +/- 0.1505 | 0.8544 +/- 0.1209 | 0.8194 +/- 0.1788 |
-| GNN (Signed PCC+PLV, beta) | 0.8238 +/- 0.1437 | 0.8125 +/- 0.1505 | 0.8487 +/- 0.1220 | 0.8083 +/- 0.1776 |
-| GNN (多频段动态权重融合 + 固定阈值0.5) | 0.8214 +/- 0.1113 | 0.8125 +/- 0.1137 | 0.8401 +/- 0.1109 | 0.8889 +/- 0.1511 |
-| GNN (多频段动态权重融合 + 动态阈值) | 0.7738 +/- 0.1414 | 0.7750 +/- 0.1397 | 0.7781 +/- 0.1293 | 0.8556 +/- 0.1432 |
+| Static best: Dual-Graph Multiband + top-k + signed split | 0.8524 +/- 0.0497 | 0.8333 +/- 0.0645 | 0.8695 +/- 0.0533 | 0.8708 +/- 0.1491 |
+| Spatiotemporal (matched baseline, 8/4/24) | 0.8357 +/- 0.1293 | 0.8417 +/- 0.1205 | 0.8294 +/- 0.1596 | 0.8764 +/- 0.1048 |
+| Spatiotemporal (best config, 16/8/12) | **0.8690 +/- 0.1243** | **0.8667 +/- 0.1247** | **0.8794 +/- 0.1226** | 0.8667 +/- 0.1296 |
 
-## 本次新增模型（Dual-Graph / Multiband）的关键观察
-1. 相比“Dual-Graph broad”，多频段动态融合在四项指标均提升：  
-   - Accuracy: `0.8167 -> 0.8357`（+0.0190）  
-   - Balanced Accuracy: `0.8000 -> 0.8250`（+0.0250）  
-   - F1: `0.8183 -> 0.8373`（+0.0190）  
-   - ROC-AUC: `0.8111 -> 0.8556`（+0.0444）
-2. 这说明“把 PLV 分成 theta/alpha/beta 并让模型动态选权重”是有效的，能减少宽频 PLV 把有用频段信息平均掉的问题。
-3. 多频段动态融合的平均权重：`PCC=0.3103, theta=0.2438, alpha=0.2274, beta=0.2185`，说明模型不是单押某一频段，而是在样本层面做自适应组合。
-4. 与“单 PCC GNN”相比，多频段版本在 AUC 上明显更高（`0.8556` vs `0.7972`），但 Acc/BalAcc/F1 仍略低于单 PCC，提示下一步应优化决策阈值/校准以把排序优势转成分类优势。
-5. 引入“per-node top-k + 正负边分保留”后，多频段 dual-graph 指标进一步提升，且方差明显下降：  
-   - Accuracy: `0.8357 -> 0.8524`  
-   - Balanced Accuracy: `0.8250 -> 0.8333`  
-   - F1: `0.8373 -> 0.8695`  
-   - ROC-AUC: `0.8556 -> 0.8708`  
-   - Acc 标准差: `0.1057 -> 0.0497`
+## Window sensitivity (spatiotemporal model)
+| Config (`window/step/max`) | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
+|---|---:|---:|---:|---:|
+| 8/4/24 | 0.8357 +/- 0.1293 | 0.8417 +/- 0.1205 | 0.8294 +/- 0.1596 | 0.8764 +/- 0.1048 |
+| 8/8/12 | 0.8548 +/- 0.1328 | 0.8542 +/- 0.1334 | 0.8488 +/- 0.1601 | **0.9028 +/- 0.1287** |
+| 12/6/16 | 0.7905 +/- 0.1733 | 0.7958 +/- 0.1733 | 0.8143 +/- 0.1528 | 0.8556 +/- 0.1928 |
+| 16/8/12 | **0.8690 +/- 0.1243** | **0.8667 +/- 0.1247** | **0.8794 +/- 0.1226** | 0.8667 +/- 0.1296 |
 
-## 结果文件对应
-- Non-GNN: `outputs/metrics/nongnn_cv10_metrics.json`
-- Signed PCC: `outputs/metrics/gnn_gcn_signedpcc_cv10_metrics_latest.json`
-- Signed PCC+PLV broad: `outputs/metrics/gnn_gcn_signed_pccplv_cv10_metrics_latest.json`
-- Signed PCC+PLV theta: `outputs/metrics/gnn_gcn_signed_pccplv_theta_cv10_metrics_latest.json`
-- Signed PCC+PLV alpha: `outputs/metrics/gnn_gcn_signed_pccplv_alpha_cv10_metrics_latest.json`
-- Signed PCC+PLV beta: `outputs/metrics/gnn_gcn_signed_pccplv_beta_cv10_metrics_latest.json`
-- 多频段动态权重（固定阈值）: `outputs/metrics/gnn_multiband_fusion_cv10_metrics_latest.json`
-- 多频段动态权重（动态阈值）: `outputs/metrics/gnn_multiband_fusion_cv10_metrics_valthr_latest.json`
-- Dual-Graph PCC+PLV broad（本次新增）: `outputs/metrics/runs/dualgraph_full_cv10/gnn_dualgraph_pcc_plv_broad.json`
-- Dual-Graph Multiband PCC+PLV(theta/alpha/beta)（本次新增）: `outputs/metrics/runs/dualgraph_multiband_full_cv10/gnn_dualgraph_multiband_pcc_plv_tab_cv10.json`
-- Dual-Graph Multiband + per-node top-k（本次新增）: `outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json`
+## Stage-wise ablation (learnable prior/mask)
+| Stage | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
+|---|---:|---:|---:|---:|
+| Stage-0 baseline | 0.8524 +/- 0.0497 | 0.8333 +/- 0.0645 | 0.8695 +/- 0.0533 | 0.8708 +/- 0.1491 |
+| Stage-1 reweight | 0.8524 +/- 0.0497 | 0.8333 +/- 0.0645 | 0.8695 +/- 0.0533 | 0.8708 +/- 0.1491 |
+| Stage-2 prior + reweight | 0.8357 +/- 0.0749 | 0.8167 +/- 0.0816 | 0.8395 +/- 0.1229 | 0.8708 +/- 0.1491 |
+| Stage-3 prior + reweight + mask | 0.8190 +/- 0.0905 | 0.8000 +/- 0.0928 | 0.8262 +/- 0.1333 | 0.8694 +/- 0.1591 |
 
-## 运行记录
-- 统一入口运行ID：`dualgraph_full_cv10`
-- 汇总输出：
-  - `outputs/metrics/runs/dualgraph_full_cv10/benchmark_summary.json`
-  - `outputs/metrics/runs/dualgraph_full_cv10/benchmark_summary.md`
-- 多频段动态融合运行：
-  - `outputs/metrics/runs/dualgraph_multiband_full_cv10/gnn_dualgraph_multiband_pcc_plv_tab_cv10.json`
-- Top-k 选边多频段运行：
-  - `outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json`
+Conclusion: in the current 61-subject setting, simple top-k graph selection is more stable than heavier edge-level learnable masking.
+
+## Result files (main)
+- Static best: `outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json`
+- Spatiotemporal 8/4/24: `outputs/metrics/runs/spatiotemporal_cv10/gnn_dualgraph_multiband_spatiotemporal_cv10_e200_matched.json`
+- Spatiotemporal 16/8/12: `outputs/metrics/runs/spatiotemporal_cv10/gnn_dualgraph_multiband_spatiotemporal_cv10_e200_w16_s8_m12.json`
+- Stage-wise ablation: `outputs/metrics/runs/learnable_prior_mask_cv10/stagewise_prior_learnable_topk_cv10_e200.json`

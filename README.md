@@ -1,49 +1,50 @@
-﻿# EEG-MDD 毕设实验仓库
+﻿# EEG-MDD Graduation Project
 
-## 当前最佳结果（2026-04）
-- 模型：Dual-Graph Multiband（PCC + PLV theta/alpha/beta）
-- 构图：`per_node_topk` + `signed_topk_split`
-- 10-fold：Acc `0.8524 +/- 0.0497`，BalAcc `0.8333 +/- 0.0645`，F1 `0.8695 +/- 0.0533`，AUC `0.8708 +/- 0.1491`
-- 结果文件：`outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json`
+## Highlights (2026-04)
+- Best static model: `Dual-Graph Multiband (PCC + PLV theta/alpha/beta) + per_node_topk + signed_split`
+- Best static 10-fold: Acc `0.8524 +/- 0.0497`, BalAcc `0.8333 +/- 0.0645`, F1 `0.8695 +/- 0.0533`, AUC `0.8708 +/- 0.1491`
+- Best spatiotemporal 10-fold: `Static-best + BiGRU + window/step/max=16/8/12`
+  - Acc `0.8690 +/- 0.1243`, BalAcc `0.8667 +/- 0.1247`, F1 `0.8794 +/- 0.1226`, AUC `0.8667 +/- 0.1296`
 
-## 项目结构
-- `src/build_graphs.py`：EEG 构图（支持 `global_quantile` 与 `per_node_topk`）
-- `src/train_nongnn_cv10.py`：非 GNN（LR/RF）10-fold
-- `src/train_gnn_cv10.py`：单图 GNN 10-fold
-- `src/train_gnn_dualgraph_cv10.py`：双路图（PCC + PLV broad）10-fold
-- `src/train_gnn_dualgraph_multiband_cv10.py`：多频段双路（PCC + theta/alpha/beta）10-fold
-- `src/train_gnn_multiband_cv10.py`：历史多频段融合基线
-- `src/run_benchmarks.py`：统一 benchmark 入口
-- `docs/benchmark_summary.md`：完整对比与结论
+## Repository Layout
+- `src/build_graphs.py`: graph construction (`pcc`, `plv`, `wpli`, `dwpli`, `pcc_plv`)
+- `src/train_nongnn_cv10.py`: LR/RF 10-fold baseline
+- `src/train_gnn_cv10.py`: single-graph signed GCN 10-fold
+- `src/train_gnn_dualgraph_multiband_cv10.py`: dual-graph multiband static model
+- `src/train_gnn_dualgraph_multiband_stagewise_cv10.py`: stage-wise ablation (`baseline -> reweight -> prior -> mask`)
+- `src/train_gnn_dualgraph_multiband_spatiotemporal_cv10.py`: multiband spatiotemporal model
+- `src/train_gnn_spatiotemporal_cv10.py`: PCC-only spatiotemporal baseline
+- `src/run_benchmarks.py`: unified benchmark entry
+- `docs/benchmark_summary.md`: concise benchmark report
 
-## 环境检查
+## Environment Check
 ```powershell
 .\.venv\Scripts\python.exe .\env_check.py
 ```
 
-## 快速复现（当前最佳配置）
+## Quick Reproduction
+
+### 1) Build static graphs (top-k)
 ```powershell
-# 1) PCC top-k 图
+# PCC
 .\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode pcc --edge-selection per_node_topk --top-k-per-node 4 --signed-topk-split --out-dir data/processed/graphs_pcc_topk_task
 
-# 2) PLV top-k 图（theta / alpha / beta）
+# PLV theta/alpha/beta
 .\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band theta --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_theta_topk_task
 .\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band alpha --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_alpha_topk_task
 .\.venv\Scripts\python.exe .\src\build_graphs.py --edge-mode plv --plv-band beta  --edge-selection per_node_topk --top-k-per-node 4 --out-dir data/processed/graphs_plv_beta_topk_task
+```
 
-# 3) 训练多频段动态融合
+### 2) Train static best model
+```powershell
 .\.venv\Scripts\python.exe .\src\train_gnn_dualgraph_multiband_cv10.py --pcc-manifest data/processed/graphs_pcc_topk_task/manifest.csv --theta-manifest data/processed/graphs_plv_theta_topk_task/manifest.csv --alpha-manifest data/processed/graphs_plv_alpha_topk_task/manifest.csv --beta-manifest data/processed/graphs_plv_beta_topk_task/manifest.csv --out-path outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json --experiment-name gnn_dualgraph_multiband_topk_cv10
 ```
 
-## 统一入口（批量实验）
+### 3) Train current best spatiotemporal model
 ```powershell
-.\.venv\Scripts\python.exe .\src\run_benchmarks.py
+.\.venv\Scripts\python.exe .\src\train_gnn_dualgraph_multiband_spatiotemporal_cv10.py --window-seconds 16 --step-seconds 8 --max-windows 12 --epochs 200 --batch-size 16 --lr 1e-3 --weight-decay 1e-4 --dropout 0.2 --seed 42 --out-path outputs/metrics/runs/spatiotemporal_cv10/gnn_dualgraph_multiband_spatiotemporal_cv10_e200_w16_s8_m12.json --experiment-name gnn_dualgraph_multiband_spatiotemporal_cv10_e200_w16_s8_m12
 ```
 
-输出目录示例：
-- `outputs/metrics/runs/<run_id>/benchmark_summary.json`
-- `outputs/metrics/runs/<run_id>/benchmark_summary.md`
-
-## 说明
-- 数据和大体积产物默认不进 git（见 `.gitignore`）。
-- 如需论文表格/结论，优先参考 `docs/benchmark_summary.md`。
+## Notes
+- Large datasets and generated outputs are git-ignored.
+- For full metric details, see `docs/benchmark_summary.md`.
