@@ -11,6 +11,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -156,6 +157,70 @@ def calc_metrics(y_true: np.ndarray, prob_pos: np.ndarray, threshold: float = 0.
         "roc_auc": float(roc_auc_score(y_true, prob_pos)) if len(np.unique(y_true)) == 2 else None,
         "confusion_matrix": confusion_matrix(y_true, pred).tolist(),
     }
+
+
+def _sigmoid(x: np.ndarray) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float64)
+    out = np.empty_like(x, dtype=np.float64)
+    pos = x >= 0
+    out[pos] = 1.0 / (1.0 + np.exp(-x[pos]))
+    exp_x = np.exp(x[~pos])
+    out[~pos] = exp_x / (1.0 + exp_x)
+    return out
+
+
+def fit_temperature_from_val(score_val: np.ndarray, y_val: np.ndarray) -> float:
+    eps = 1e-8
+    # A compact grid-search is deterministic and robust on tiny validation sets.
+    temps = np.concatenate(
+        [
+            np.linspace(0.5, 3.0, 51, dtype=np.float64),
+            np.linspace(3.1, 8.0, 50, dtype=np.float64),
+        ]
+    )
+    y = y_val.astype(np.float64)
+    best_t = 1.0
+    best_nll = float("inf")
+    for t in temps:
+        p = np.clip(_sigmoid(score_val / t), eps, 1.0 - eps)
+        nll = float(-np.mean((y * np.log(p)) + ((1.0 - y) * np.log(1.0 - p))))
+        if nll < best_nll:
+            best_nll = nll
+            best_t = float(t)
+    return best_t
+
+
+def calibrate_with_val(
+    method: str,
+    y_val: np.ndarray,
+    score_val: np.ndarray,
+    score_test: np.ndarray,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray, dict[str, float | str]]:
+    method = str(method).lower()
+    if method == "none":
+        return _sigmoid(score_val), _sigmoid(score_test), {"method": "none"}
+
+    if np.unique(y_val).size < 2:
+        return _sigmoid(score_val), _sigmoid(score_test), {"method": "none_fallback_single_class_val"}
+
+    if method == "temperature":
+        t = fit_temperature_from_val(score_val=score_val, y_val=y_val)
+        return _sigmoid(score_val / t), _sigmoid(score_test / t), {"method": "temperature", "temperature": float(t)}
+
+    if method == "platt":
+        clf = LogisticRegression(
+            max_iter=1000,
+            solver="lbfgs",
+            class_weight="balanced",
+            random_state=int(seed),
+        )
+        clf.fit(score_val.reshape(-1, 1), y_val.astype(np.int64))
+        p_val = clf.predict_proba(score_val.reshape(-1, 1))[:, 1]
+        p_test = clf.predict_proba(score_test.reshape(-1, 1))[:, 1]
+        return p_val, p_test, {"method": "platt"}
+
+    raise ValueError(f"Unknown calibration method: {method}")
 
 
 def select_threshold_from_val(
@@ -385,21 +450,24 @@ def predict(
     model: nn.Module,
     loader: torch.utils.data.DataLoader,
     device: torch.device,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     model.eval()
     y_all: list[np.ndarray] = []
     p_all: list[np.ndarray] = []
     w_all: list[np.ndarray] = []
+    s_all: list[np.ndarray] = []
 
     for batch in loader:
         y = batch["y"].to(device)
         logits, w = model(batch["seq_windows"])
         probs = F.softmax(logits, dim=1)[:, 1].detach().cpu().numpy()
+        scores = (logits[:, 1] - logits[:, 0]).detach().cpu().numpy()
         y_all.append(y.detach().cpu().numpy())
         p_all.append(probs)
         w_all.append(w.detach().cpu().numpy())
+        s_all.append(scores)
 
-    return np.concatenate(y_all), np.concatenate(p_all), np.concatenate(w_all, axis=0)
+    return np.concatenate(y_all), np.concatenate(p_all), np.concatenate(w_all, axis=0), np.concatenate(s_all)
 
 
 def parse_args() -> argparse.Namespace:
@@ -448,6 +516,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--threshold-grid-step", type=float, default=0.01)
     p.add_argument("--threshold-grid-low", type=float, default=0.05)
     p.add_argument("--threshold-grid-high", type=float, default=0.95)
+    p.add_argument(
+        "--calibration",
+        type=str,
+        default="none",
+        choices=["none", "temperature", "platt"],
+        help="Probability calibration on validation fold before thresholding and test evaluation.",
+    )
 
     p.add_argument(
         "--out-path",
@@ -534,7 +609,7 @@ def main() -> int:
         best_val_bal = -1.0
         for _ in range(args.epochs):
             _ = train_one_epoch(model, train_loader, optimizer, device)
-            y_val, p_val, _ = predict(model, val_loader, device)
+            y_val, p_val, _, _ = predict(model, val_loader, device)
             val_bal = float(balanced_accuracy_score(y_val, (p_val >= 0.5).astype(np.int64)))
             if val_bal > best_val_bal:
                 best_val_bal = val_bal
@@ -574,7 +649,15 @@ def main() -> int:
                     ckpt_path,
                 )
 
-        y_val_best, p_val_best, _ = predict(model, val_loader, device)
+        y_val_best, _, _, s_val_best = predict(model, val_loader, device)
+        y_test, _, w_test, s_test = predict(model, test_loader, device)
+        p_val_best, p_test, calib_info = calibrate_with_val(
+            method=args.calibration,
+            y_val=y_val_best,
+            score_val=s_val_best,
+            score_test=s_test,
+            seed=args.seed + fold_no,
+        )
         if args.threshold_mode == "val_opt":
             test_thr, val_thr_score = select_threshold_from_val(
                 y_true=y_val_best,
@@ -588,7 +671,6 @@ def main() -> int:
             test_thr = float(args.threshold_default)
             val_thr_score = float("nan")
 
-        y_test, p_test, w_test = predict(model, test_loader, device)
         metrics = calc_metrics(y_test, p_test, threshold=test_thr)
 
         w_mean = w_test.mean(axis=0)
@@ -600,6 +682,7 @@ def main() -> int:
                 "n_test": int(len(test_ds)),
                 "best_val_balanced_accuracy": best_val_bal,
                 "test_threshold": float(test_thr),
+                "calibration": calib_info,
                 "val_threshold_metric": args.threshold_metric if args.threshold_mode == "val_opt" else None,
                 "val_threshold_score": None if args.threshold_mode != "val_opt" else float(val_thr_score),
                 "avg_windows_test": float(np.mean([int(x["n_windows"]) for x in test_items])),
@@ -619,6 +702,7 @@ def main() -> int:
             f"bal_acc={metrics['balanced_accuracy']:.4f} "
             f"f1={metrics['f1']:.4f} "
             f"auc={metrics['roc_auc'] if metrics['roc_auc'] is not None else 'NA'} "
+            f"calib={calib_info.get('method', 'none')} "
             f"thr={test_thr:.2f} "
             f"w=[{w_mean[0]:.3f},{w_mean[1]:.3f},{w_mean[2]:.3f},{w_mean[3]:.3f}]"
         )
@@ -658,6 +742,7 @@ def main() -> int:
             "min_edges": args.min_edges,
             "top_k_per_node": args.top_k_per_node,
             "threshold_mode": args.threshold_mode,
+            "calibration": args.calibration,
             "threshold_default": args.threshold_default,
             "threshold_metric": args.threshold_metric,
             "threshold_grid_step": args.threshold_grid_step,
