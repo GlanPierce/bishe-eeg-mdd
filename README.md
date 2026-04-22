@@ -5,6 +5,10 @@
 - Best static 10-fold: Acc `0.8524 +/- 0.0497`, BalAcc `0.8333 +/- 0.0645`, F1 `0.8695 +/- 0.0533`, AUC `0.8708 +/- 0.1491`
 - Best spatiotemporal 10-fold: `Static-best + BiGRU + window/step/max=16/8/12`
   - Acc `0.8690 +/- 0.1243`, BalAcc `0.8667 +/- 0.1247`, F1 `0.8794 +/- 0.1226`, AUC `0.8667 +/- 0.1296`
+- New stable static 5x10: `Graph-vector LogisticRegression on PCC + PLV(theta/alpha/beta) top-k graphs`
+  - Acc `0.9043 +/- 0.0063`, BalAcc `0.8983 +/- 0.0057`, F1 `0.9095 +/- 0.0094`, AUC `0.9594 +/- 0.0098`
+- New stable spatiotemporal 5x10: `Static graph vector + temporal window summary (16/8/12) + LogisticRegression`
+  - Acc `0.8943 +/- 0.0081`, BalAcc `0.8883 +/- 0.0061`, F1 `0.8957 +/- 0.0123`, AUC `0.9553 +/- 0.0164`
 
 ## Repository Layout
 - `src/build_graphs.py`: graph construction (`pcc`, `plv`, `wpli`, `dwpli`, `pcc_plv`)
@@ -15,6 +19,8 @@
 - `src/train_gnn_dualgraph_multiband_spatiotemporal_cv10.py`: multiband spatiotemporal model
 - `src/train_gnn_spatiotemporal_cv10.py`: PCC-only spatiotemporal baseline
 - `src/run_benchmarks.py`: unified benchmark entry
+- `src/run_static_topk_5x10.py`: repeated 5x10 static graph-vector benchmark
+- `src/run_temporal_variants_5x10.py`: repeated 5x10 temporal-summary / hybrid benchmark
 - `docs/benchmark_summary.md`: concise benchmark report
 
 ## Environment Check
@@ -43,6 +49,16 @@
 ### 3) Train current best spatiotemporal model
 ```powershell
 .\.venv\Scripts\python.exe .\src\train_gnn_dualgraph_multiband_spatiotemporal_cv10.py --window-seconds 16 --step-seconds 8 --max-windows 12 --epochs 200 --batch-size 16 --lr 1e-3 --weight-decay 1e-4 --dropout 0.2 --seed 42 --out-path outputs/metrics/runs/spatiotemporal_cv10/gnn_dualgraph_multiband_spatiotemporal_cv10_e200_w16_s8_m12.json --experiment-name gnn_dualgraph_multiband_spatiotemporal_cv10_e200_w16_s8_m12
+```
+
+### 4) Reproduce the stable static 5x10 result
+```powershell
+.\.venv\Scripts\python.exe .\src\run_static_topk_5x10.py
+```
+
+### 5) Reproduce the stable spatiotemporal 5x10 result
+```powershell
+.\.venv\Scripts\python.exe .\src\run_temporal_variants_5x10.py --variant hybrid
 ```
 
 ## Notes

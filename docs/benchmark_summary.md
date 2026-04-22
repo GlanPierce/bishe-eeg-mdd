@@ -6,6 +6,16 @@
 - Metrics: mean +/- std across folds
 
 ## Recommended models
+- Stable repeated-CV static recommendation: `Graph-vector LogisticRegression on PCC + PLV(theta/alpha/beta) top-k graphs`
+  - 5x10 Acc `0.9043 +/- 0.0063`
+  - 5x10 BalAcc `0.8983 +/- 0.0057`
+  - 5x10 F1 `0.9095 +/- 0.0094`
+  - 5x10 AUC `0.9594 +/- 0.0098`
+- Stable repeated-CV spatiotemporal recommendation: `Static graph vector + temporal window summary (16/8/12) + LogisticRegression`
+  - 5x10 Acc `0.8943 +/- 0.0081`
+  - 5x10 BalAcc `0.8883 +/- 0.0061`
+  - 5x10 F1 `0.8957 +/- 0.0123`
+  - 5x10 AUC `0.9553 +/- 0.0164`
 - Static recommendation: `Dual-Graph Multiband + per-node top-k + signed split`
   - Acc `0.8524 +/- 0.0497`
   - BalAcc `0.8333 +/- 0.0645`
@@ -45,6 +55,8 @@
 Conclusion: in the current 61-subject setting, simple top-k graph selection is more stable than heavier edge-level learnable masking.
 
 ## Result files (main)
+- Stable static 5x10: `outputs/metrics/runs/static_graphvector_lr_5x10/summary_5x10.json`
+- Stable spatiotemporal 5x10: `outputs/metrics/runs/hybrid_spatiotemporal_graphvector_lr_5x10/summary_5x10.json`
 - Static best: `outputs/metrics/runs/dualgraph_multiband_topk_full_cv10/gnn_dualgraph_multiband_topk_cv10.json`
 - Spatiotemporal 8/4/24: `outputs/metrics/runs/spatiotemporal_cv10/gnn_dualgraph_multiband_spatiotemporal_cv10_e200_matched.json`
 - Spatiotemporal 16/8/12: `outputs/metrics/runs/spatiotemporal_cv10/gnn_dualgraph_multiband_spatiotemporal_cv10_e200_w16_s8_m12.json`
