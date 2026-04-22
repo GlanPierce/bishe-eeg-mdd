@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--alpha-manifest", type=Path, default=Path("data/processed/graphs_plv_alpha_topk_task/manifest.csv"))
     p.add_argument("--beta-manifest", type=Path, default=Path("data/processed/graphs_plv_beta_topk_task/manifest.csv"))
     p.add_argument("--variant", type=str, default="hybrid", choices=["temporal_only", "hybrid"])
-    p.add_argument("--window-seconds", type=float, default=16.0)
+    p.add_argument("--window-seconds", type=float, default=8.0)
     p.add_argument("--step-seconds", type=float, default=8.0)
     p.add_argument("--max-windows", type=int, default=12)
     p.add_argument("--max-seconds", type=int, default=120)

@@ -7,8 +7,8 @@
   - Acc `0.8690 +/- 0.1243`, BalAcc `0.8667 +/- 0.1247`, F1 `0.8794 +/- 0.1226`, AUC `0.8667 +/- 0.1296`
 - New stable static 5x10: `Graph-vector LogisticRegression on PCC + PLV(theta/alpha/beta) top-k graphs`
   - Acc `0.9043 +/- 0.0063`, BalAcc `0.8983 +/- 0.0057`, F1 `0.9095 +/- 0.0094`, AUC `0.9594 +/- 0.0098`
-- New stable spatiotemporal 5x10: `Static graph vector + temporal window summary (16/8/12) + LogisticRegression`
-  - Acc `0.8943 +/- 0.0081`, BalAcc `0.8883 +/- 0.0061`, F1 `0.8957 +/- 0.0123`, AUC `0.9553 +/- 0.0164`
+- New stable spatiotemporal 5x10: `Static graph vector + temporal window summary (8/8/12) + LogisticRegression`
+  - Acc `0.9143 +/- 0.0087`, BalAcc `0.9100 +/- 0.0082`, F1 `0.9173 +/- 0.0130`, AUC `0.9686 +/- 0.0088`
 
 ## Repository Layout
 - `src/build_graphs.py`: graph construction (`pcc`, `plv`, `wpli`, `dwpli`, `pcc_plv`)

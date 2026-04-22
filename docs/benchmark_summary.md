@@ -11,11 +11,11 @@
   - 5x10 BalAcc `0.8983 +/- 0.0057`
   - 5x10 F1 `0.9095 +/- 0.0094`
   - 5x10 AUC `0.9594 +/- 0.0098`
-- Stable repeated-CV spatiotemporal recommendation: `Static graph vector + temporal window summary (16/8/12) + LogisticRegression`
-  - 5x10 Acc `0.8943 +/- 0.0081`
-  - 5x10 BalAcc `0.8883 +/- 0.0061`
-  - 5x10 F1 `0.8957 +/- 0.0123`
-  - 5x10 AUC `0.9553 +/- 0.0164`
+- Stable repeated-CV spatiotemporal recommendation: `Static graph vector + temporal window summary (8/8/12) + LogisticRegression`
+  - 5x10 Acc `0.9143 +/- 0.0087`
+  - 5x10 BalAcc `0.9100 +/- 0.0082`
+  - 5x10 F1 `0.9173 +/- 0.0130`
+  - 5x10 AUC `0.9686 +/- 0.0088`
 - Static recommendation: `Dual-Graph Multiband + per-node top-k + signed split`
   - Acc `0.8524 +/- 0.0497`
   - BalAcc `0.8333 +/- 0.0645`
