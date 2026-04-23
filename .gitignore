@@ -1,41 +1,38 @@
-# Python
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .pytest_cache/
 
-# Virtual env / local runtimes
+# Virtual environments and local runtimes
 .venv/
 python311/
 .dgl/
 
-# Large raw data and archives
+# Data and generated artifacts
 data/raw/
 data/processed/
+data/splits/
+outputs/
 *.zip
 
-# Generated outputs
-outputs/
-data/splits/
-
-# Local/editor
+# Local scratch and desktop-specific folders
 .idea/
 .vscode/
+.vs/
+desktop_app/
+local/
+新建文件夹/
 *.log
 
-# Source materials (not code)
+# Source materials that are not meant to be versioned
 *.docx
 *.pptx
-get-pip.py
-新建文件夹/
-
-# Visual Studio local cache
-.vs/
 ~$*.docx
+get-pip.py
 
-# Local literature scratch files
+# Local literature scratch exports
 arxiv_mdd_eeg_*.csv
 mdd_eeg_summary_*.md
 MDD_EEG_arXiv_*
-

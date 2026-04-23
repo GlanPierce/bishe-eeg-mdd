@@ -86,6 +86,6 @@
 - `src/train_gnn_dualgraph_cv10.py`
 - `src/train_gnn_dualgraph_multiband_cv10.py`
 - `src/build_graphs.py`
-- `docs/benchmark_summary.md`
-- `docs/topk_edge_strategy_issue_resolution.md`
+- `docs/benchmarks/benchmark_summary.md`
+- `docs/notes/topk_edge_strategy_issue_resolution.md`
 
