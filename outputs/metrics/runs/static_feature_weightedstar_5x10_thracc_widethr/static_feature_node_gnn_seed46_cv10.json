@@ -1,0 +1,416 @@
+{
+  "schema_version": "eeg_mdd_static_feature_node_gnn_5x10_v1",
+  "experiment_name": "static_feature_weightedstar_5x10_thracc_widethr",
+  "created_at_utc": "2026-04-23T12:58:50Z",
+  "model": "FeatureNodeGNN",
+  "device": "cuda",
+  "params": {
+    "folds": 10,
+    "seed": 46,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46
+    ],
+    "epochs": 1000,
+    "batch_size": 16,
+    "lr": 0.05,
+    "weight_decay": 0.1,
+    "hidden_dim": 64,
+    "node_embed_dim": 32,
+    "dropout": 0.25,
+    "conv_type": "weighted_star",
+    "heads": 2,
+    "patience": 120,
+    "min_epochs": 120,
+    "selection_metric": "threshold_accuracy",
+    "thr_low": 0.05,
+    "thr_high": 0.95,
+    "thr_step": 0.01,
+    "val_size": 0.2,
+    "fold_ids": []
+  },
+  "manifests": {
+    "pcc": "data\\processed\\graphs_pcc_topk_task\\manifest.csv",
+    "theta": "data\\processed\\graphs_plv_theta_topk_task\\manifest.csv",
+    "alpha": "data\\processed\\graphs_plv_alpha_topk_task\\manifest.csv",
+    "beta": "data\\processed\\graphs_plv_beta_topk_task\\manifest.csv"
+  },
+  "feature_shape": {
+    "n_subjects": 61,
+    "n_features": 1034
+  },
+  "aggregate": {
+    "accuracy": {
+      "mean": 0.9023809523809524,
+      "std": 0.10934250003052413
+    },
+    "balanced_accuracy": {
+      "mean": 0.8916666666666666,
+      "std": 0.11814539065631523
+    },
+    "f1": {
+      "mean": 0.8992063492063492,
+      "std": 0.14625802000306834
+    },
+    "roc_auc": {
+      "mean": 0.9597222222222221,
+      "std": 0.06286927943197929
+    }
+  },
+  "fold_results": [
+    {
+      "fold": 1,
+      "n_train": 43,
+      "n_val": 11,
+      "n_test": 7,
+      "best_epoch": 1,
+      "best_val_accuracy": 0.8181818181818182,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 0.8181818181818182,
+      "test_threshold": 0.5000000000000001,
+      "test_subject_ids": [
+        "H_S01",
+        "H_S18",
+        "H_S22",
+        "MDD_S05",
+        "MDD_S14",
+        "MDD_S22",
+        "MDD_S32"
+      ],
+      "test_metrics": {
+        "accuracy": 0.8571428571428571,
+        "balanced_accuracy": 0.8333333333333333,
+        "f1": 0.8888888888888888,
+        "roc_auc": 0.8333333333333334,
+        "confusion_matrix": [
+          [
+            2,
+            1
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 2,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 2,
+      "best_val_accuracy": 0.8181818181818182,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 0.8181818181818182,
+      "test_threshold": 0.5000000000000001,
+      "test_subject_ids": [
+        "H_S02",
+        "H_S06",
+        "H_S30",
+        "MDD_S07",
+        "MDD_S18",
+        "MDD_S23"
+      ],
+      "test_metrics": {
+        "accuracy": 0.8333333333333334,
+        "balanced_accuracy": 0.8333333333333333,
+        "f1": 0.8571428571428571,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            2,
+            1
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 3,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 218,
+      "best_val_accuracy": 0.8181818181818182,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 0.8181818181818182,
+      "test_threshold": 0.5000000000000001,
+      "test_subject_ids": [
+        "H_S10",
+        "H_S11",
+        "H_S29",
+        "MDD_S11",
+        "MDD_S13",
+        "MDD_S34"
+      ],
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 4,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 232,
+      "best_val_accuracy": 0.9090909090909091,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 0.9090909090909091,
+      "test_threshold": 0.5000000000000001,
+      "test_subject_ids": [
+        "H_S05",
+        "H_S07",
+        "H_S25",
+        "MDD_S04",
+        "MDD_S12",
+        "MDD_S33"
+      ],
+      "test_metrics": {
+        "accuracy": 0.8333333333333334,
+        "balanced_accuracy": 0.8333333333333333,
+        "f1": 0.8571428571428571,
+        "roc_auc": 0.888888888888889,
+        "confusion_matrix": [
+          [
+            2,
+            1
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 5,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 232,
+      "best_val_accuracy": 0.8181818181818182,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 0.8181818181818182,
+      "test_threshold": 0.9100000000000003,
+      "test_subject_ids": [
+        "H_S12",
+        "H_S13",
+        "H_S15",
+        "MDD_S10",
+        "MDD_S16",
+        "MDD_S17"
+      ],
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 6,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 186,
+      "best_val_accuracy": 0.9090909090909091,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 0.9090909090909091,
+      "test_threshold": 0.5000000000000001,
+      "test_subject_ids": [
+        "H_S04",
+        "H_S08",
+        "H_S24",
+        "MDD_S06",
+        "MDD_S24",
+        "MDD_S28"
+      ],
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 7,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 225,
+      "best_val_accuracy": 0.9090909090909091,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 0.9090909090909091,
+      "test_threshold": 0.8500000000000002,
+      "test_subject_ids": [
+        "H_S26",
+        "H_S27",
+        "H_S28",
+        "MDD_S15",
+        "MDD_S19",
+        "MDD_S26"
+      ],
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 8,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 3,
+      "best_val_accuracy": 1.0,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 1.0,
+      "test_threshold": 0.5000000000000001,
+      "test_subject_ids": [
+        "H_S09",
+        "H_S14",
+        "H_S23",
+        "MDD_S08",
+        "MDD_S27",
+        "MDD_S29"
+      ],
+      "test_metrics": {
+        "accuracy": 0.6666666666666666,
+        "balanced_accuracy": 0.6666666666666666,
+        "f1": 0.5,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 9,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 442,
+      "best_val_accuracy": 1.0,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 1.0,
+      "test_threshold": 0.9400000000000002,
+      "test_subject_ids": [
+        "H_S16",
+        "H_S17",
+        "MDD_S02",
+        "MDD_S21",
+        "MDD_S25",
+        "MDD_S31"
+      ],
+      "test_metrics": {
+        "accuracy": 0.8333333333333334,
+        "balanced_accuracy": 0.75,
+        "f1": 0.8888888888888888,
+        "roc_auc": 0.875,
+        "confusion_matrix": [
+          [
+            1,
+            1
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 10,
+      "n_train": 44,
+      "n_val": 11,
+      "n_test": 6,
+      "best_epoch": 170,
+      "best_val_accuracy": 1.0,
+      "selection_metric": "threshold_accuracy",
+      "val_threshold_accuracy": 1.0,
+      "test_threshold": 0.16000000000000003,
+      "test_subject_ids": [
+        "H_S03",
+        "H_S19",
+        "MDD_S01",
+        "MDD_S03",
+        "MDD_S20",
+        "MDD_S30"
+      ],
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    }
+  ]
+}
