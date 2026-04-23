@@ -1,0 +1,528 @@
+{
+  "schema_version": "eeg_mdd_explicit_region_temporal_summary_node_gnn_5x10_v1",
+  "experiment_name": "explicit_region_temporal_summary_node_gnn_5x10",
+  "created_at_utc": "2026-04-23T15:07:09Z",
+  "model": "ExplicitRegionTemporalWeightedStarGNN",
+  "device": "cuda",
+  "params": {
+    "folds": 10,
+    "seed": 45,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46
+    ],
+    "c": 1.0,
+    "window_seconds": 8.0,
+    "step_seconds": 8.0,
+    "max_windows": 12,
+    "max_seconds": 120,
+    "region_keys": [
+      "frontal",
+      "central",
+      "temporal",
+      "parietal",
+      "occipital",
+      "left",
+      "right",
+      "midline",
+      "cross_region",
+      "global"
+    ],
+    "temporal_group_keys": [
+      "temporal_mean",
+      "temporal_std",
+      "temporal_delta"
+    ]
+  },
+  "feature_shape": {
+    "n_subjects": 61,
+    "n_feature_nodes": 1364,
+    "n_region_nodes": 10,
+    "n_temporal_group_nodes": 3,
+    "n_total_nodes_without_global": 1377
+  },
+  "aggregate": {
+    "accuracy": {
+      "mean": 0.9166666666666667,
+      "std": 0.11180339887498948
+    },
+    "balanced_accuracy": {
+      "mean": 0.9208333333333332,
+      "std": 0.10937003957005575
+    },
+    "f1": {
+      "mean": 0.9264285714285714,
+      "std": 0.09443980914328665
+    },
+    "roc_auc": {
+      "mean": 0.9888888888888889,
+      "std": 0.03333333333333331
+    }
+  },
+  "fold_results": [
+    {
+      "fold": 1,
+      "n_train": 54,
+      "n_test": 7,
+      "test_subject_ids": [
+        "H_S14",
+        "H_S23",
+        "H_S28",
+        "MDD_S03",
+        "MDD_S06",
+        "MDD_S14",
+        "MDD_S18"
+      ],
+      "region_coefficients": {
+        "frontal": -0.004092362743560323,
+        "central": -0.0028931330372228667,
+        "temporal": 0.010371748591541007,
+        "parietal": 0.01118753698769625,
+        "occipital": -0.0036578850621858533,
+        "left": -0.00896030029623196,
+        "right": 0.0066530827362645635,
+        "midline": -0.0019960311138746694,
+        "cross_region": -0.006729466743418918,
+        "global": -0.0015905423153702901
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.0168369656911085,
+        "temporal_std": 0.026085879900385932,
+        "temporal_delta": 0.0047293506457826125
+      },
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 2,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S16",
+        "H_S25",
+        "H_S29",
+        "MDD_S01",
+        "MDD_S04",
+        "MDD_S32"
+      ],
+      "region_coefficients": {
+        "frontal": 0.012841394151776627,
+        "central": 0.0015681662775881857,
+        "temporal": 0.0017662116244551215,
+        "parietal": -0.0036228353232919345,
+        "occipital": -0.023470155244936314,
+        "left": -0.0024095631949317808,
+        "right": 0.0020905463691722275,
+        "midline": -0.00046112087320666,
+        "cross_region": -0.01729682733813872,
+        "global": -4.8058229184333586e-05
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.01032833262539239,
+        "temporal_std": 0.009254450840024726,
+        "temporal_delta": 0.012786248130695285
+      },
+      "test_metrics": {
+        "accuracy": 0.6666666666666666,
+        "balanced_accuracy": 0.6666666666666666,
+        "f1": 0.75,
+        "roc_auc": 0.888888888888889,
+        "confusion_matrix": [
+          [
+            1,
+            2
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 3,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S07",
+        "H_S10",
+        "H_S19",
+        "MDD_S16",
+        "MDD_S19",
+        "MDD_S28"
+      ],
+      "region_coefficients": {
+        "frontal": -0.0073821191540917215,
+        "central": -0.005370342457678282,
+        "temporal": 0.006472667808664475,
+        "parietal": 0.007711837812448059,
+        "occipital": -0.005184103392049674,
+        "left": -0.011730554287089315,
+        "right": 0.004374239094387649,
+        "midline": -0.007666575045844845,
+        "cross_region": -0.01718697858822952,
+        "global": -0.004114184555453586
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.015609475226957357,
+        "temporal_std": 0.024416781595118422,
+        "temporal_delta": 0.0025065519088158443
+      },
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 4,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S01",
+        "H_S08",
+        "H_S30",
+        "MDD_S29",
+        "MDD_S30",
+        "MDD_S31"
+      ],
+      "region_coefficients": {
+        "frontal": -0.006318868919615235,
+        "central": -0.005488423238860264,
+        "temporal": 0.005446198505162474,
+        "parietal": 0.008913436097284089,
+        "occipital": -0.003921191741713257,
+        "left": -0.011028966627270239,
+        "right": 0.0051447725141192035,
+        "midline": -0.0063984690655575546,
+        "cross_region": -0.013266288908404214,
+        "global": -0.0037462372471887867
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.015956152668331704,
+        "temporal_std": 0.023514826766268856,
+        "temporal_delta": 0.004354692648241308
+      },
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 5,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S05",
+        "H_S15",
+        "H_S22",
+        "MDD_S05",
+        "MDD_S25",
+        "MDD_S34"
+      ],
+      "region_coefficients": {
+        "frontal": -0.007131567078541685,
+        "central": -0.0013676683815308803,
+        "temporal": 0.0037759299254745697,
+        "parietal": 0.007860914480082052,
+        "occipital": -0.007736575008907228,
+        "left": -0.01454688585420789,
+        "right": 0.002635770160531984,
+        "midline": -0.002285429143513219,
+        "cross_region": -0.01615052476507541,
+        "global": -0.005369289857831022
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.02280419307592271,
+        "temporal_std": 0.01980611025758106,
+        "temporal_delta": 6.719888973672261e-05
+      },
+      "test_metrics": {
+        "accuracy": 0.8333333333333334,
+        "balanced_accuracy": 0.8333333333333333,
+        "f1": 0.8571428571428571,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            2,
+            1
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 6,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S12",
+        "H_S13",
+        "H_S24",
+        "MDD_S11",
+        "MDD_S22",
+        "MDD_S33"
+      ],
+      "region_coefficients": {
+        "frontal": -0.006720130548461964,
+        "central": -0.006058259778212312,
+        "temporal": 0.007329601168191401,
+        "parietal": 0.007055117740112738,
+        "occipital": -0.007531041840397054,
+        "left": -0.013150517058171926,
+        "right": 0.004822886622217491,
+        "midline": -0.006710499252234389,
+        "cross_region": -0.01975373495071557,
+        "global": -0.004164286989188537
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.014255252820918806,
+        "temporal_std": 0.02726643771031875,
+        "temporal_delta": 0.0017594253489423806
+      },
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 7,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S11",
+        "H_S17",
+        "H_S18",
+        "MDD_S08",
+        "MDD_S12",
+        "MDD_S20"
+      ],
+      "region_coefficients": {
+        "frontal": -0.003396612006340763,
+        "central": -0.0016627450939972629,
+        "temporal": 0.006430098999796641,
+        "parietal": 0.008095567368418337,
+        "occipital": -0.005258180761098716,
+        "left": -0.01119028186303358,
+        "right": 0.009662209356735271,
+        "midline": -0.0013060779480233839,
+        "cross_region": -0.021949179436020146,
+        "global": -0.001103179055725274
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.01388630710130622,
+        "temporal_std": 0.02766431376960104,
+        "temporal_delta": 0.003973788606247204
+      },
+      "test_metrics": {
+        "accuracy": 0.8333333333333334,
+        "balanced_accuracy": 0.8333333333333333,
+        "f1": 0.8,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 8,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S02",
+        "H_S09",
+        "H_S27",
+        "MDD_S07",
+        "MDD_S10",
+        "MDD_S15"
+      ],
+      "region_coefficients": {
+        "frontal": -0.007583033056965953,
+        "central": -0.005939500518942468,
+        "temporal": 0.0039525448642052435,
+        "parietal": 0.00803617868003593,
+        "occipital": -0.004850173924612878,
+        "left": -0.011733463608070389,
+        "right": 0.003785958683324827,
+        "midline": -0.008447363214136831,
+        "cross_region": -0.017590924720459512,
+        "global": -0.004685234668231627
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.019927827546905297,
+        "temporal_std": 0.023318632449144627,
+        "temporal_delta": 0.004942365277249646
+      },
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            3,
+            0
+          ],
+          [
+            0,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 9,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S04",
+        "H_S06",
+        "MDD_S02",
+        "MDD_S23",
+        "MDD_S24",
+        "MDD_S27"
+      ],
+      "region_coefficients": {
+        "frontal": 0.0010242435242553132,
+        "central": -0.005698999977985412,
+        "temporal": 0.0037860353515370166,
+        "parietal": 0.009360824376741479,
+        "occipital": -0.002460976209798154,
+        "left": -0.010547144716782437,
+        "right": 0.010267144293242448,
+        "midline": -0.0022893576131756154,
+        "cross_region": -0.0200161232430656,
+        "global": -0.0006027344688826266
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.012019167664307598,
+        "temporal_std": 0.022144736043795493,
+        "temporal_delta": 0.007119618247220997
+      },
+      "test_metrics": {
+        "accuracy": 0.8333333333333334,
+        "balanced_accuracy": 0.875,
+        "f1": 0.8571428571428571,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            2,
+            0
+          ],
+          [
+            1,
+            3
+          ]
+        ]
+      }
+    },
+    {
+      "fold": 10,
+      "n_train": 55,
+      "n_test": 6,
+      "test_subject_ids": [
+        "H_S03",
+        "H_S26",
+        "MDD_S13",
+        "MDD_S17",
+        "MDD_S21",
+        "MDD_S26"
+      ],
+      "region_coefficients": {
+        "frontal": -0.0009956619489358337,
+        "central": 0.00019307484018436615,
+        "temporal": 0.0035443299664377616,
+        "parietal": 0.005355627881216079,
+        "occipital": -0.008727503201472774,
+        "left": -0.009645113120651033,
+        "right": 0.0034763664887372727,
+        "midline": -0.004618676329909649,
+        "cross_region": -0.015033972643585197,
+        "global": -0.0028747483552266874
+      },
+      "temporal_group_coefficients": {
+        "temporal_mean": -0.016464329911275413,
+        "temporal_std": 0.029324229221818224,
+        "temporal_delta": 0.0021838620002969903
+      },
+      "test_metrics": {
+        "accuracy": 1.0,
+        "balanced_accuracy": 1.0,
+        "f1": 1.0,
+        "roc_auc": 1.0,
+        "confusion_matrix": [
+          [
+            2,
+            0
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      }
+    }
+  ]
+}

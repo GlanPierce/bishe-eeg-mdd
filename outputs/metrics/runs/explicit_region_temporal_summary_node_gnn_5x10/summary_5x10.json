@@ -1,0 +1,118 @@
+{
+  "schema_version": "eeg_mdd_explicit_region_temporal_summary_node_gnn_5x10_summary_v1",
+  "experiment_name": "explicit_region_temporal_summary_node_gnn_5x10",
+  "created_at_utc": "2026-04-23T15:07:09Z",
+  "model": "ExplicitRegionTemporalWeightedStarGNN",
+  "params": {
+    "folds": 10,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46
+    ],
+    "c": 1.0,
+    "window_seconds": 8.0,
+    "step_seconds": 8.0,
+    "max_windows": 12,
+    "max_seconds": 120,
+    "region_keys": [
+      "frontal",
+      "central",
+      "temporal",
+      "parietal",
+      "occipital",
+      "left",
+      "right",
+      "midline",
+      "cross_region",
+      "global"
+    ],
+    "temporal_group_keys": [
+      "temporal_mean",
+      "temporal_std",
+      "temporal_delta"
+    ]
+  },
+  "feature_shape": {
+    "n_subjects": 61,
+    "n_feature_nodes": 1364,
+    "n_region_nodes": 10,
+    "n_temporal_group_nodes": 3,
+    "n_total_nodes_without_global": 1377
+  },
+  "n_runs": 5,
+  "runs": [
+    {
+      "seed": 42,
+      "path": "outputs\\metrics\\runs\\explicit_region_temporal_summary_node_gnn_5x10\\explicit_region_temporal_summary_node_gnn_seed42_cv10.json",
+      "accuracy_mean": 0.9166666666666667,
+      "accuracy_std": 0.08333333333333331,
+      "balanced_accuracy_mean": 0.9083333333333332,
+      "balanced_accuracy_std": 0.09464847243000458,
+      "f1_mean": 0.9203174603174602,
+      "f1_std": 0.08346791853183042,
+      "roc_auc_mean": 0.9652777777777779,
+      "roc_auc_std": 0.07276770498572072
+    },
+    {
+      "seed": 43,
+      "path": "outputs\\metrics\\runs\\explicit_region_temporal_summary_node_gnn_5x10\\explicit_region_temporal_summary_node_gnn_seed43_cv10.json",
+      "accuracy_mean": 0.9166666666666667,
+      "accuracy_std": 0.15365907428821476,
+      "balanced_accuracy_mean": 0.9166666666666666,
+      "balanced_accuracy_std": 0.1536590742882148,
+      "f1_mean": 0.9114285714285714,
+      "f1_std": 0.1795459124955997,
+      "roc_auc_mean": 0.9666666666666668,
+      "roc_auc_std": 0.09999999999999998
+    },
+    {
+      "seed": 44,
+      "path": "outputs\\metrics\\runs\\explicit_region_temporal_summary_node_gnn_5x10\\explicit_region_temporal_summary_node_gnn_seed44_cv10.json",
+      "accuracy_mean": 0.9023809523809525,
+      "accuracy_std": 0.08000141722100686,
+      "balanced_accuracy_mean": 0.8958333333333333,
+      "balanced_accuracy_std": 0.08984941105353261,
+      "f1_mean": 0.914920634920635,
+      "f1_std": 0.07316478948068592,
+      "roc_auc_mean": 0.9527777777777778,
+      "roc_auc_std": 0.08055555555555552
+    },
+    {
+      "seed": 45,
+      "path": "outputs\\metrics\\runs\\explicit_region_temporal_summary_node_gnn_5x10\\explicit_region_temporal_summary_node_gnn_seed45_cv10.json",
+      "accuracy_mean": 0.9166666666666667,
+      "accuracy_std": 0.11180339887498948,
+      "balanced_accuracy_mean": 0.9208333333333332,
+      "balanced_accuracy_std": 0.10937003957005575,
+      "f1_mean": 0.9264285714285714,
+      "f1_std": 0.09443980914328665,
+      "roc_auc_mean": 0.9888888888888889,
+      "roc_auc_std": 0.03333333333333331
+    },
+    {
+      "seed": 46,
+      "path": "outputs\\metrics\\runs\\explicit_region_temporal_summary_node_gnn_5x10\\explicit_region_temporal_summary_node_gnn_seed46_cv10.json",
+      "accuracy_mean": 0.9190476190476191,
+      "accuracy_std": 0.11024606574085931,
+      "balanced_accuracy_mean": 0.9083333333333332,
+      "balanced_accuracy_std": 0.12047360245667467,
+      "f1_mean": 0.9134920634920635,
+      "f1_std": 0.1484126984126984,
+      "roc_auc_mean": 0.9805555555555555,
+      "roc_auc_std": 0.03938179688543837
+    }
+  ],
+  "summary_over_runs": {
+    "accuracy_mean_of_means": 0.9142857142857144,
+    "accuracy_std_of_means": 0.00602338601936832,
+    "balanced_accuracy_mean_of_means": 0.9099999999999999,
+    "balanced_accuracy_std_of_means": 0.00857969178415582,
+    "f1_mean_of_means": 0.9173174603174603,
+    "f1_std_of_means": 0.005423463669636103,
+    "roc_auc_mean_of_means": 0.9708333333333334,
+    "roc_auc_std_of_means": 0.0126075619087891
+  }
+}
