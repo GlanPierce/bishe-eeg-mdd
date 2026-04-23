@@ -36,10 +36,11 @@ The multistate models score higher, but they run on a smaller subset and are the
 
 | Method | Script / Setting | Subjects | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
 |---|---|---:|---:|---:|---:|---:|
+| `TASK + EC + EO` + objective QC | `run_multistate_explicit_region_temporal_node_gnn_5x10.py --include-pairwise-contrasts --c-grid 0.01,0.02,0.05,0.1,0.2,0.5,1.0,2.0,5.0,10.0 --qc-max-abs-threshold 0.0018 --qc-kurtosis-threshold 550 --qc-bad-window-abs-threshold 0.0003 --qc-bad-window-min-ratio 0.16` | `38` | **`0.9750`** | **`0.9750`** | **`0.9800`** | **`0.9900`** |
 | `TASK` only on complete-state subset | `run_multistate_explicit_region_temporal_node_gnn_5x10.py --states TASK` | `53` | `0.9253` | `0.9233` | `0.9312` | `0.9767` |
 | `TASK + EC` | `run_multistate_explicit_region_temporal_node_gnn_5x10.py --states TASK,EC` | `55` | `0.9233` | `0.9183` | `0.9222` | `0.9567` |
 | `TASK + EO` | `run_multistate_explicit_region_temporal_node_gnn_5x10.py --states TASK,EO` | `58` | `0.9247` | `0.9183` | `0.9291` | `0.9581` |
-| `TASK + EC + EO` | `run_multistate_explicit_region_temporal_node_gnn_5x10.py` | `53` | **`0.9260`** | **`0.9233`** | `0.9231` | `0.9667` |
+| `TASK + EC + EO` | `run_multistate_explicit_region_temporal_node_gnn_5x10.py` | `53` | `0.9260` | `0.9233` | `0.9231` | `0.9667` |
 
 ## Main Result Files
 - Canonical full-dataset:
@@ -47,6 +48,7 @@ The multistate models score higher, but they run on a smaller subset and are the
   - `outputs/metrics/runs/explicit_region_temporal_summary_node_gnn_5x10/summary_5x10.json`
 - Multistate complete-subject:
   - `outputs/metrics/runs/multistate_explicit_region_temporal_node_gnn_5x10_v2/summary_5x10.json`
+  - `outputs/metrics/runs/multistate_qc_impulsive_explicit_region_temporal_node_gnn_5x10/summary_5x10.json`
   - `outputs/metrics/runs/multistate_taskonly_on_tristate53_5x10/summary_5x10.json`
   - `outputs/metrics/runs/multistate_task_ec_5x10/summary_5x10.json`
   - `outputs/metrics/runs/multistate_task_eo_5x10/summary_5x10.json`
@@ -54,4 +56,5 @@ The multistate models score higher, but they run on a smaller subset and are the
 ## Practical Recommendation
 - If the target is the main thesis benchmark on the full dataset, use `run_explicit_region_temporal_summary_node_gnn_5x10.py`.
 - If the target is multistate pure-GNN research on complete subjects, use `run_multistate_explicit_region_temporal_node_gnn_5x10.py`.
+- If the target is the strongest multistate line, use the same multistate script with the objective QC flags above; it keeps `38/53` complete-state subjects after artifact filtering.
 - Use `docs/benchmarks/model_catalog.md` to distinguish stable models from exploratory and probe-only scripts.

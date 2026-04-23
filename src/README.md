@@ -17,6 +17,7 @@ If you only need the main models, start from the first section and ignore the re
   - Current primary full-dataset pure-GNN benchmark
 - `run_multistate_explicit_region_temporal_node_gnn_5x10.py`
   - Multistate pure-GNN entry point for complete-state subsets such as `TASK+EC+EO`
+  - Also supports objective EEG artifact filtering through `--qc-*` flags; the current strongest multistate result uses this script with QC enabled
 
 ## Comparator or historical reference scripts
 - `train_baseline.py`

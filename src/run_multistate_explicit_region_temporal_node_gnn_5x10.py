@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
+from scipy.stats import kurtosis
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -406,6 +407,174 @@ def load_or_build_feature_cache(args: argparse.Namespace) -> list[dict[str, obje
     torch.save({"meta": meta_expect, "items": items}, args.items_cache_path)
     print(f"Saved multistate cache: {args.items_cache_path}")
     return items
+
+
+def _condition_quality_raw_metrics(
+    file_path: Path,
+    max_seconds: int,
+    qc_window_seconds: float,
+    max_windows: int,
+) -> dict[str, object]:
+    cfg = GraphConfig(max_seconds=max_seconds)
+    data, sfreq, _ = read_eeg(file_path, cfg)
+    win = max(1, int(round(float(qc_window_seconds) * sfreq)))
+    starts = _window_starts(data.shape[1], win, win)[: int(max_windows)]
+    window_max_abs: list[float] = []
+    for start in starts:
+        stop = min(start + win, data.shape[1])
+        segment = data[:, start:stop]
+        if segment.shape[1] < 8:
+            continue
+        window_max_abs.append(float(np.max(np.abs(segment))))
+    if not window_max_abs:
+        window_max_abs.append(float(np.max(np.abs(data))))
+
+    kurt_vals = kurtosis(data, axis=1, fisher=False, bias=False)
+    kurt_vals = np.nan_to_num(kurt_vals, nan=0.0, posinf=0.0, neginf=0.0)
+    return {
+        "max_abs": float(np.max(np.abs(data))),
+        "kurt_max": float(np.max(kurt_vals)),
+        "window_max_abs": window_max_abs,
+        "n_windows": int(len(window_max_abs)),
+    }
+
+
+def load_or_build_quality_cache(
+    args: argparse.Namespace,
+    items: list[dict[str, object]],
+    states: list[str],
+) -> dict[str, dict[str, dict[str, object]]]:
+    meta_expect = {
+        "raw_dir": str(args.raw_dir),
+        "states": [str(x) for x in states],
+        "max_seconds": int(args.max_seconds),
+        "qc_window_seconds": float(args.qc_window_seconds),
+        "max_windows": int(args.max_windows),
+    }
+    if args.quality_cache_path.exists():
+        cache_obj = torch.load(args.quality_cache_path, map_location="cpu", weights_only=False)
+        if isinstance(cache_obj, dict) and cache_obj.get("meta") == meta_expect and "subject_state_metrics" in cache_obj:
+            print(f"Loaded quality cache: {args.quality_cache_path}")
+            return cache_obj["subject_state_metrics"]
+
+    subject_state_metrics: dict[str, dict[str, dict[str, object]]] = defaultdict(dict)
+    for idx, item in enumerate(items, start=1):
+        state = str(item["state"])
+        if state not in states:
+            continue
+        subject_id = str(item["subject_id"])
+        fp = Path(str(item["file_path"]))
+        print(f"[{idx}/{len(items)}] quality build: {subject_id} {state} {fp.name}")
+        subject_state_metrics[subject_id][state] = _condition_quality_raw_metrics(
+            file_path=fp,
+            max_seconds=int(args.max_seconds),
+            qc_window_seconds=float(args.qc_window_seconds),
+            max_windows=int(args.max_windows),
+        )
+
+    args.quality_cache_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({"meta": meta_expect, "subject_state_metrics": dict(subject_state_metrics)}, args.quality_cache_path)
+    print(f"Saved quality cache: {args.quality_cache_path}")
+    return dict(subject_state_metrics)
+
+
+def summarize_subject_quality_metrics(
+    subject_state_metrics: dict[str, dict[str, dict[str, object]]],
+    bad_window_abs_threshold: float | None,
+) -> dict[str, dict[str, object]]:
+    out: dict[str, dict[str, object]] = {}
+    for subject_id, state_map in subject_state_metrics.items():
+        state_summary: dict[str, dict[str, object]] = {}
+        max_abs_vals: list[float] = []
+        kurt_vals: list[float] = []
+        bad_ratio_vals: list[float] = []
+        for state, metrics in state_map.items():
+            state_max_abs = float(metrics.get("max_abs", 0.0))
+            state_kurt = float(metrics.get("kurt_max", 0.0))
+            window_max_abs = np.asarray(metrics.get("window_max_abs", []), dtype=np.float32)
+            bad_ratio = 0.0
+            if bad_window_abs_threshold is not None and window_max_abs.size:
+                bad_ratio = float(np.mean(window_max_abs > float(bad_window_abs_threshold)))
+            state_summary[state] = {
+                "max_abs": state_max_abs,
+                "kurt_max": state_kurt,
+                "bad_window_ratio": bad_ratio,
+                "n_windows": int(metrics.get("n_windows", int(window_max_abs.size))),
+            }
+            max_abs_vals.append(state_max_abs)
+            kurt_vals.append(state_kurt)
+            bad_ratio_vals.append(bad_ratio)
+        out[subject_id] = {
+            "max_abs": float(max(max_abs_vals)) if max_abs_vals else 0.0,
+            "kurt_max": float(max(kurt_vals)) if kurt_vals else 0.0,
+            "bad_window_ratio": float(max(bad_ratio_vals)) if bad_ratio_vals else 0.0,
+            "states": state_summary,
+        }
+    return out
+
+
+def apply_subject_quality_filters(
+    subject_ids: np.ndarray,
+    quality_metrics: dict[str, dict[str, object]],
+    args: argparse.Namespace,
+) -> tuple[np.ndarray, dict[str, object]]:
+    qc_enabled = any(
+        x is not None
+        for x in [
+            args.qc_max_abs_threshold,
+            args.qc_kurtosis_threshold,
+            args.qc_bad_window_abs_threshold,
+            args.qc_bad_window_min_ratio,
+        ]
+    )
+    if not qc_enabled:
+        return np.ones(len(subject_ids), dtype=bool), {"enabled": False}
+
+    keep_mask = np.ones(len(subject_ids), dtype=bool)
+    excluded_subjects: list[str] = []
+    excluded_metrics: dict[str, dict[str, object]] = {}
+
+    for idx, subject_id in enumerate(subject_ids):
+        sid = str(subject_id)
+        metrics = quality_metrics.get(sid, {"max_abs": 0.0, "kurt_max": 0.0, "bad_window_ratio": 0.0, "states": {}})
+        reasons: list[str] = []
+
+        if args.qc_max_abs_threshold is not None and float(metrics.get("max_abs", 0.0)) > float(args.qc_max_abs_threshold):
+            reasons.append(f"max_abs>{float(args.qc_max_abs_threshold):.6f}")
+
+        if (
+            args.qc_kurtosis_threshold is not None
+            and args.qc_bad_window_abs_threshold is not None
+            and args.qc_bad_window_min_ratio is not None
+            and float(metrics.get("kurt_max", 0.0)) > float(args.qc_kurtosis_threshold)
+            and float(metrics.get("bad_window_ratio", 0.0)) >= float(args.qc_bad_window_min_ratio)
+        ):
+            reasons.append(
+                "impulsive_artifact"
+                f"(kurt>{float(args.qc_kurtosis_threshold):.1f},"
+                f"bad_ratio>={float(args.qc_bad_window_min_ratio):.4f},"
+                f"win_abs>{float(args.qc_bad_window_abs_threshold):.6f})"
+            )
+
+        if reasons:
+            keep_mask[idx] = False
+            excluded_subjects.append(sid)
+            excluded_metrics[sid] = {
+                "reasons": reasons,
+                **metrics,
+            }
+
+    return keep_mask, {
+        "enabled": True,
+        "quality_cache_path": str(args.quality_cache_path),
+        "qc_window_seconds": float(args.qc_window_seconds),
+        "max_abs_threshold": float(args.qc_max_abs_threshold) if args.qc_max_abs_threshold is not None else None,
+        "kurtosis_threshold": float(args.qc_kurtosis_threshold) if args.qc_kurtosis_threshold is not None else None,
+        "bad_window_abs_threshold": float(args.qc_bad_window_abs_threshold) if args.qc_bad_window_abs_threshold is not None else None,
+        "bad_window_min_ratio": float(args.qc_bad_window_min_ratio) if args.qc_bad_window_min_ratio is not None else None,
+        "excluded_subject_ids": excluded_subjects,
+        "excluded_subject_metrics": excluded_metrics,
+    }
 
 
 def build_subject_multistate_table(
@@ -941,7 +1110,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--items-cache-path",
         type=Path,
-        default=Path("outputs/cache/multistate_task_ec_eo_features_ms120_w8p0_s8p0_mw12_topk4.pt"),
+        default=Path("outputs/cache/multistate_task_ec_eo_features_ms120_w8p0_s8p0_mw12_topk4_v2.pt"),
+    )
+    p.add_argument(
+        "--quality-cache-path",
+        type=Path,
+        default=Path("outputs/cache/multistate_subject_quality_ms120_qw8p0_mw12.pt"),
     )
     p.add_argument("--window-seconds", type=float, default=8.0)
     p.add_argument("--step-seconds", type=float, default=8.0)
@@ -960,6 +1134,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--thr-low", type=float, default=0.1)
     p.add_argument("--thr-high", type=float, default=0.9)
     p.add_argument("--thr-step", type=float, default=0.01)
+    p.add_argument("--qc-window-seconds", type=float, default=8.0)
+    p.add_argument("--qc-max-abs-threshold", type=float, default=None)
+    p.add_argument("--qc-kurtosis-threshold", type=float, default=None)
+    p.add_argument("--qc-bad-window-abs-threshold", type=float, default=None)
+    p.add_argument("--qc-bad-window-min-ratio", type=float, default=None)
     p.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"])
     p.add_argument(
         "--out-dir",
@@ -991,6 +1170,50 @@ def main() -> int:
         eligible_states=eligible_states,
         include_pairwise_contrasts=bool(args.include_pairwise_contrasts),
     )
+
+    qc_summary: dict[str, object] = {"enabled": False}
+    keep_mask = np.ones(len(subject_ids), dtype=bool)
+    if any(
+        x is not None
+        for x in [
+            args.qc_max_abs_threshold,
+            args.qc_kurtosis_threshold,
+            args.qc_bad_window_abs_threshold,
+            args.qc_bad_window_min_ratio,
+        ]
+    ):
+        subject_state_metrics = load_or_build_quality_cache(args, items=items, states=states)
+        quality_metrics = summarize_subject_quality_metrics(
+            subject_state_metrics,
+            bad_window_abs_threshold=float(args.qc_bad_window_abs_threshold)
+            if args.qc_bad_window_abs_threshold is not None
+            else None,
+        )
+        keep_mask, qc_summary = apply_subject_quality_filters(subject_ids, quality_metrics, args)
+        qc_summary["n_subjects_before_qc"] = int(len(subject_ids))
+        qc_summary["n_subjects_after_qc"] = int(np.sum(keep_mask))
+        if not bool(np.all(keep_mask)):
+            excluded = qc_summary.get("excluded_subject_ids", [])
+            print(f"Applied subject QC: kept={int(np.sum(keep_mask))}/{len(subject_ids)} excluded={len(excluded)}")
+            for sid in excluded:
+                metrics = qc_summary.get("excluded_subject_metrics", {}).get(str(sid), {})
+                print(
+                    f"  exclude {sid}: "
+                    f"max_abs={float(metrics.get('max_abs', 0.0)):.6f} "
+                    f"kurt={float(metrics.get('kurt_max', 0.0)):.2f} "
+                    f"bad_ratio={float(metrics.get('bad_window_ratio', 0.0)):.4f} "
+                    f"reasons={metrics.get('reasons', [])}"
+                )
+        subject_ids = subject_ids[keep_mask]
+        y = y[keep_mask]
+        base_x = base_x[keep_mask]
+
+    class_counts = np.bincount(y, minlength=2)
+    if int(np.min(class_counts)) < int(args.folds):
+        raise RuntimeError(
+            f"Not enough per-class subjects after filtering for {args.folds}-fold CV: "
+            f"class_counts={class_counts.tolist()}"
+        )
 
     region_x = build_region_aggregates(base_x, feature_region_map)
     state_region_x = build_state_region_aggregates(base_x, feature_region_map, feature_state_ids, n_states=len(state_keys))
@@ -1147,6 +1370,7 @@ def main() -> int:
                 "group_keys": group_keys,
                 "state_keys": state_keys,
             },
+            "quality_control": qc_summary,
             "feature_shape": {
                 "n_subjects": int(expanded_x.shape[0]),
                 "n_feature_nodes": int(n_feature_nodes),
@@ -1194,6 +1418,7 @@ def main() -> int:
             "group_keys": group_keys,
             "state_keys": state_keys,
         },
+        "quality_control": qc_summary,
         "feature_shape": {
             "n_subjects": int(expanded_x.shape[0]),
             "n_feature_nodes": int(n_feature_nodes),

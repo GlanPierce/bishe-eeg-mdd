@@ -9,7 +9,8 @@ These are the scripts that currently define the repository's clean benchmark sto
 |---|---|---|---|---|---|
 | Stable | Static pure GNN | `src/run_static_feature_node_gnn_5x10.py` | `61` subjects, `TASK` only | `0.9010` acc | Best clean static pure-GNN baseline on the full benchmark |
 | Stable | Explicit region + temporal pure GNN | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | `61` subjects, `TASK` only | `0.9143` acc | Current full-dataset primary pure-GNN result |
-| Stable | Multistate explicit region-temporal pure GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` | complete-state subsets | `0.9260` acc on `TASK+EC+EO` | Strongest multistate line, but subset-only |
+| Stable | Multistate explicit region-temporal pure GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` | complete-state subsets | `0.9260` acc on `TASK+EC+EO` | Clean multistate baseline on the complete-state subset |
+| Stable | Multistate QC explicit region-temporal pure GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` with QC flags | QC-filtered complete-state subset | `0.9750` acc on `38` subjects | Current strongest multistate line; uses objective artifact filtering (`max_abs` + impulsive-window rule) |
 
 ## 2. Comparator and reference scripts
 These scripts are useful for controlled comparisons or historical references, but they are not the primary pure-GNN story.
@@ -61,4 +62,5 @@ These are building blocks rather than the recommended top-level benchmark script
 ## 6. Reporting convention
 - Use `run_explicit_region_temporal_summary_node_gnn_5x10.py` when the report must stay on the canonical full `61`-subject benchmark.
 - Use `run_multistate_explicit_region_temporal_node_gnn_5x10.py` only when the report explicitly says it is a complete-state multistate subset experiment.
+- When reporting the strongest multistate number, include the QC thresholds and the post-filter subject count, because the `0.9750` line is a quality-controlled subset rather than the raw `53`-subject complete-state pool.
 - Do not present selector or ensemble scripts as if they were a single pure-GNN benchmark model.

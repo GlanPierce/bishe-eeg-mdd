@@ -24,6 +24,7 @@ This line is currently strongest numerically, but it uses only subjects with com
 | Model | Script | Scope | 5x10 Accuracy | BalAcc | F1 | AUC |
 |---|---|---|---:|---:|---:|---:|
 | Multistate explicit region-temporal pure GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` | `53` complete-state subjects, `TASK+EC+EO` | `0.9260` | `0.9233` | `0.9231` | `0.9667` |
+| Multistate QC explicit region-temporal pure GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` with QC flags | `38` QC-filtered complete-state subjects, `TASK+EC+EO` | **`0.9750`** | **`0.9750`** | **`0.9800`** | **`0.9900`** |
 
 ## Repository Layout
 - `src/`: graph builders, benchmark entry points, and lower-level training modules
@@ -64,12 +65,19 @@ This line is currently strongest numerically, but it uses only subjects with com
 .\.venv\Scripts\python.exe .\src\run_multistate_explicit_region_temporal_node_gnn_5x10.py
 ```
 
+### 4) Reproduce the strongest QC-filtered multistate pure GNN
+```powershell
+.\.venv\Scripts\python.exe .\src\run_multistate_explicit_region_temporal_node_gnn_5x10.py --include-pairwise-contrasts --c-grid 0.01,0.02,0.05,0.1,0.2,0.5,1.0,2.0,5.0,10.0 --qc-max-abs-threshold 0.0018 --qc-kurtosis-threshold 550 --qc-bad-window-abs-threshold 0.0003 --qc-bad-window-min-ratio 0.16 --out-dir outputs/metrics/runs/multistate_qc_impulsive_explicit_region_temporal_node_gnn_5x10 --experiment-name multistate_qc_impulsive_explicit_region_temporal_node_gnn_5x10
+```
+
 ## Key Result Files
 - `outputs/metrics/runs/static_feature_weightedstar_5x10_thracc_widethr/summary_5x10.json`
 - `outputs/metrics/runs/explicit_region_temporal_summary_node_gnn_5x10/summary_5x10.json`
 - `outputs/metrics/runs/multistate_explicit_region_temporal_node_gnn_5x10_v2/summary_5x10.json`
+- `outputs/metrics/runs/multistate_qc_impulsive_explicit_region_temporal_node_gnn_5x10/summary_5x10.json`
 
 ## Notes
 - The canonical full-dataset benchmark and the multistate complete-subject benchmark should be reported separately.
+- The QC-filtered multistate line should also be reported separately from the raw complete-state `53`-subject benchmark because it excludes objective artifact outliers before CV.
 - Most raw data, processed graphs, and generated outputs are git-ignored.
 - Local scratch files are grouped under `local/`.
