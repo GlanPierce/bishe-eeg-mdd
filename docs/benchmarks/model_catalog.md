@@ -1,5 +1,7 @@
 # Model Catalog
 
+English | [简体中文](model_catalog.zh-CN.md)
+
 This file is the clean registry for model entry points in `src/`. It separates stable benchmark scripts from hybrid comparators, exploratory routes, and lower-level training modules.
 
 ## 1. Stable benchmark entry points
@@ -8,7 +10,7 @@ These are the scripts that currently define the repository's clean benchmark sto
 | Tier | Family | Script | Scope | Best tracked result | Notes |
 |---|---|---|---|---|---|
 | Stable | Static pure GNN | `src/run_static_feature_node_gnn_5x10.py` | `61` subjects, `TASK` only | `0.9010` acc | Best clean static pure-GNN baseline on the full benchmark |
-| Stable | Explicit region + temporal pure GNN | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | `61` subjects, `TASK` only | `0.9143` acc | Current full-dataset primary pure-GNN result |
+| Stable | Explicit region + temporal pure GNN | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | `61` subjects, `TASK` only | `0.9343` acc | Current full-dataset primary pure-GNN result; uses targeted temporal cleaning plus static-clean and temporal-zero repair on the noisiest subjects |
 | Stable | Multistate explicit region-temporal pure GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` | complete-state subsets | `0.9260` acc on `TASK+EC+EO` | Clean multistate baseline on the complete-state subset |
 | Stable | Multistate QC explicit region-temporal pure GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` with QC flags | QC-filtered complete-state subset | `0.9750` acc on `38` subjects | Current strongest multistate line; uses objective artifact filtering (`max_abs` + impulsive-window rule) |
 
@@ -61,6 +63,7 @@ These are building blocks rather than the recommended top-level benchmark script
 
 ## 6. Reporting convention
 - Use `run_explicit_region_temporal_summary_node_gnn_5x10.py` when the report must stay on the canonical full `61`-subject benchmark.
+- The current recommended `61`-subject setting is the targeted-repair variant with `clean250 + static_clean>=0.33 + temporal_zero>=0.33`, stored under `outputs/metrics/runs/explicit_region_temporal_summary_targeted_clean250_staticclean033_tempzero033_c025_5x10/`.
 - Use `run_multistate_explicit_region_temporal_node_gnn_5x10.py` only when the report explicitly says it is a complete-state multistate subset experiment.
 - When reporting the strongest multistate number, include the QC thresholds and the post-filter subject count, because the `0.9750` line is a quality-controlled subset rather than the raw `53`-subject complete-state pool.
 - Do not present selector or ensemble scripts as if they were a single pure-GNN benchmark model.

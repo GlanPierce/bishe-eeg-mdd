@@ -1,5 +1,7 @@
 # Benchmark Summary
 
+English | [简体中文](benchmark_summary.zh-CN.md)
+
 ## Scope Note
 This repository now contains two benchmark families and they should not be mixed:
 
@@ -20,7 +22,16 @@ The multistate models score higher, but they run on a smaller subset and are the
 | Method | Script | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
 |---|---|---:|---:|---:|---:|
 | Static pure GNN (`FeatureNodeGNN`) | `src/run_static_feature_node_gnn_5x10.py` | `0.9010 +/- 0.0106` | `0.8950 +/- 0.0081` | `0.9066 +/- 0.0138` | `0.9456 +/- 0.0227` |
-| Explicit region + temporal pure GNN (`ExplicitRegionTemporalWeightedStarGNN`) | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | **`0.9143 +/- 0.0060`** | **`0.9100 +/- 0.0086`** | **`0.9173 +/- 0.0054`** | **`0.9708 +/- 0.0126`** |
+| Explicit region + temporal pure GNN (`ExplicitRegionTemporalWeightedStarGNN`) + targeted artifact repair | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | **`0.9343 +/- 0.0012`** | **`0.9283 +/- 0.0041`** | **`0.9412 +/- 0.0021`** | **`0.9581 +/- 0.0190`** |
+
+### Current recommended 61-subject flags
+- `--c 0.25`
+- `--targeted-clean-bad-abs-threshold 0.00025`
+- `--targeted-clean-bad-window-ratio 0.16`
+- `--targeted-clean-summary-abs-threshold 0.00025`
+- `--targeted-static-clean-bad-window-ratio 0.33`
+- `--targeted-temporal-zero-bad-window-ratio 0.33`
+- This keeps all `61` subjects and only repairs the noisiest `6` subjects by replacing static features with clean-window averages and zeroing the temporal branch.
 
 ### Historical references
 | Method | Validation setup | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
@@ -45,7 +56,7 @@ The multistate models score higher, but they run on a smaller subset and are the
 ## Main Result Files
 - Canonical full-dataset:
   - `outputs/metrics/runs/static_feature_weightedstar_5x10_thracc_widethr/summary_5x10.json`
-  - `outputs/metrics/runs/explicit_region_temporal_summary_node_gnn_5x10/summary_5x10.json`
+  - `outputs/metrics/runs/explicit_region_temporal_summary_targeted_clean250_staticclean033_tempzero033_c025_5x10/summary_5x10.json`
 - Multistate complete-subject:
   - `outputs/metrics/runs/multistate_explicit_region_temporal_node_gnn_5x10_v2/summary_5x10.json`
   - `outputs/metrics/runs/multistate_qc_impulsive_explicit_region_temporal_node_gnn_5x10/summary_5x10.json`
@@ -54,7 +65,7 @@ The multistate models score higher, but they run on a smaller subset and are the
   - `outputs/metrics/runs/multistate_task_eo_5x10/summary_5x10.json`
 
 ## Practical Recommendation
-- If the target is the main thesis benchmark on the full dataset, use `run_explicit_region_temporal_summary_node_gnn_5x10.py`.
+- If the target is the main thesis benchmark on the full dataset, use `run_explicit_region_temporal_summary_node_gnn_5x10.py` with the targeted cleaning flags above.
 - If the target is multistate pure-GNN research on complete subjects, use `run_multistate_explicit_region_temporal_node_gnn_5x10.py`.
 - If the target is the strongest multistate line, use the same multistate script with the objective QC flags above; it keeps `38/53` complete-state subjects after artifact filtering.
 - Use `docs/benchmarks/model_catalog.md` to distinguish stable models from exploratory and probe-only scripts.

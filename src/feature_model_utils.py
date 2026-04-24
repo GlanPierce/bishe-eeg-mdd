@@ -13,7 +13,7 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-from build_graphs import GraphConfig, extract_node_features, read_eeg
+from build_graphs import GraphConfig, _pcc_matrix, _phase_input_data, _plv_matrix, extract_node_features, read_eeg
 
 
 def parse_seed_list(seed_text: str) -> list[int]:
@@ -136,6 +136,37 @@ def _window_starts(n_samples: int, win: int, step: int) -> list[int]:
     return starts
 
 
+def _summarize_window_feature_stack(stacked: np.ndarray) -> np.ndarray:
+    return np.concatenate(
+        [
+            stacked.mean(axis=0),
+            stacked.std(axis=0),
+            stacked[-1] - stacked[0],
+        ]
+    ).astype(np.float32)
+
+
+def _upper_tri_features(mat: np.ndarray) -> np.ndarray:
+    tri = np.triu_indices(mat.shape[0], k=1)
+    return mat[tri].astype(np.float32)
+
+
+def _build_static_window_feature(segment: np.ndarray, sfreq: float) -> np.ndarray:
+    node_x = extract_node_features(segment, sfreq).astype(np.float32)
+    theta_data = _phase_input_data(segment, sfreq, "theta")
+    alpha_data = _phase_input_data(segment, sfreq, "alpha")
+    beta_data = _phase_input_data(segment, sfreq, "beta")
+    return np.concatenate(
+        [
+            node_x.reshape(-1),
+            _upper_tri_features(_pcc_matrix(segment)),
+            _upper_tri_features(_plv_matrix(theta_data)),
+            _upper_tri_features(_plv_matrix(alpha_data)),
+            _upper_tri_features(_plv_matrix(beta_data)),
+        ]
+    ).astype(np.float32)
+
+
 def build_temporal_summary_table(
     split_csv: Path,
     window_seconds: float,
@@ -174,13 +205,7 @@ def build_temporal_summary_table(
             window_feats.append(extract_node_features(data, sfreq).reshape(-1))
 
         stacked = np.stack(window_feats).astype(np.float32)
-        summary = np.concatenate(
-            [
-                stacked.mean(axis=0),
-                stacked.std(axis=0),
-                stacked[-1] - stacked[0],
-            ]
-        ).astype(np.float32)
+        summary = _summarize_window_feature_stack(stacked)
         print(
             f"[{idx + 1}/{len(df)}] temporal summary: {subject_id} "
             f"windows={stacked.shape[0]} summary_dim={summary.shape[0]}"
@@ -190,6 +215,148 @@ def build_temporal_summary_table(
 
     out_df = df[["subject_id", "label"]].copy()
     out_df["n_windows"] = n_windows_all
+    return out_df, np.stack(features)
+
+
+def build_targeted_clean_temporal_summary_table(
+    split_csv: Path,
+    window_seconds: float,
+    step_seconds: float,
+    max_windows: int,
+    max_seconds: int,
+    bad_window_abs_threshold: float,
+    replace_bad_window_ratio: float,
+    clean_window_abs_threshold: float | None = None,
+) -> tuple[pd.DataFrame, np.ndarray]:
+    df = pd.read_csv(split_csv)
+    required_cols = {"file_path", "subject_id", "label"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"split csv missing columns: {sorted(missing)}")
+
+    df = df.sort_values("subject_id").drop_duplicates(subset=["subject_id"], keep="first").reset_index(drop=True)
+    cfg = GraphConfig(max_seconds=max_seconds)
+    clean_thr = float(bad_window_abs_threshold if clean_window_abs_threshold is None else clean_window_abs_threshold)
+
+    features: list[np.ndarray] = []
+    n_windows_all: list[int] = []
+    n_clean_windows_all: list[int] = []
+    bad_ratio_all: list[float] = []
+    replaced_all: list[int] = []
+    for idx, row in df.iterrows():
+        file_path = Path(str(row["file_path"]))
+        subject_id = str(row["subject_id"])
+        data, sfreq, _ = read_eeg(file_path, cfg)
+        win = max(1, int(round(float(window_seconds) * sfreq)))
+        step = max(1, int(round(float(step_seconds) * sfreq)))
+        starts = _window_starts(data.shape[1], win, step)[: int(max_windows)]
+
+        window_feats: list[np.ndarray] = []
+        window_abs_max: list[float] = []
+        for start in starts:
+            stop = min(start + win, data.shape[1])
+            segment = data[:, start:stop]
+            if segment.shape[1] < 8:
+                continue
+            window_feats.append(extract_node_features(segment, sfreq).reshape(-1))
+            window_abs_max.append(float(np.max(np.abs(segment))))
+
+        if not window_feats:
+            window_feats.append(extract_node_features(data, sfreq).reshape(-1))
+            window_abs_max.append(float(np.max(np.abs(data))))
+
+        stacked = np.stack(window_feats).astype(np.float32)
+        abs_max = np.asarray(window_abs_max, dtype=np.float32)
+        clean_mask = abs_max <= float(clean_thr)
+        bad_ratio = float(np.mean(abs_max > float(bad_window_abs_threshold)))
+        should_replace = bool(bad_ratio >= float(replace_bad_window_ratio))
+        chosen = stacked[clean_mask] if should_replace and np.any(clean_mask) else stacked
+        summary = _summarize_window_feature_stack(chosen)
+        print(
+            f"[{idx + 1}/{len(df)}] targeted temporal summary: {subject_id} "
+            f"windows={stacked.shape[0]} clean_windows={int(np.sum(clean_mask))} "
+            f"bad_ratio={bad_ratio:.3f} replaced={int(should_replace)}"
+        )
+        features.append(summary)
+        n_windows_all.append(int(stacked.shape[0]))
+        n_clean_windows_all.append(int(np.sum(clean_mask)))
+        bad_ratio_all.append(bad_ratio)
+        replaced_all.append(int(should_replace))
+
+    out_df = df[["subject_id", "label"]].copy()
+    out_df["n_windows"] = n_windows_all
+    out_df["n_clean_windows"] = n_clean_windows_all
+    out_df["bad_window_ratio"] = bad_ratio_all
+    out_df["temporal_replaced"] = replaced_all
+    return out_df, np.stack(features)
+
+
+def build_clean_window_static_graph_feature_table(
+    split_csv: Path,
+    window_seconds: float,
+    step_seconds: float,
+    max_windows: int,
+    max_seconds: int,
+    clean_window_abs_threshold: float,
+) -> tuple[pd.DataFrame, np.ndarray]:
+    df = pd.read_csv(split_csv)
+    required_cols = {"file_path", "subject_id", "label"}
+    missing = required_cols - set(df.columns)
+    if missing:
+        raise ValueError(f"split csv missing columns: {sorted(missing)}")
+
+    df = df.sort_values("subject_id").drop_duplicates(subset=["subject_id"], keep="first").reset_index(drop=True)
+    cfg = GraphConfig(max_seconds=max_seconds)
+
+    features: list[np.ndarray] = []
+    n_windows_all: list[int] = []
+    n_clean_windows_all: list[int] = []
+    bad_ratio_all: list[float] = []
+    max_abs_all: list[float] = []
+    for idx, row in df.iterrows():
+        file_path = Path(str(row["file_path"]))
+        subject_id = str(row["subject_id"])
+        data, sfreq, _ = read_eeg(file_path, cfg)
+        win = max(1, int(round(float(window_seconds) * sfreq)))
+        step = max(1, int(round(float(step_seconds) * sfreq)))
+        starts = _window_starts(data.shape[1], win, step)[: int(max_windows)]
+
+        window_feats: list[np.ndarray] = []
+        window_abs_max: list[float] = []
+        for start in starts:
+            stop = min(start + win, data.shape[1])
+            segment = data[:, start:stop]
+            if segment.shape[1] < 8:
+                continue
+            window_feats.append(_build_static_window_feature(segment, sfreq))
+            window_abs_max.append(float(np.max(np.abs(segment))))
+
+        if not window_feats:
+            window_feats.append(_build_static_window_feature(data, sfreq))
+            window_abs_max.append(float(np.max(np.abs(data))))
+
+        stacked = np.stack(window_feats).astype(np.float32)
+        abs_max = np.asarray(window_abs_max, dtype=np.float32)
+        clean_mask = abs_max <= float(clean_window_abs_threshold)
+        chosen = stacked[clean_mask] if np.any(clean_mask) else stacked
+        summary = chosen.mean(axis=0).astype(np.float32)
+        bad_ratio = float(np.mean(abs_max > float(clean_window_abs_threshold)))
+        print(
+            f"[{idx + 1}/{len(df)}] clean static graph: {subject_id} "
+            f"windows={stacked.shape[0]} clean_windows={int(np.sum(clean_mask))} "
+            f"bad_ratio={bad_ratio:.3f}"
+        )
+        features.append(summary)
+        n_windows_all.append(int(stacked.shape[0]))
+        n_clean_windows_all.append(int(np.sum(clean_mask)))
+        bad_ratio_all.append(bad_ratio)
+        max_abs_all.append(float(np.max(np.abs(data))))
+
+    out_df = df[["subject_id", "label"]].copy()
+    out_df["n_windows"] = n_windows_all
+    out_df["n_clean_windows"] = n_clean_windows_all
+    out_df["bad_window_ratio"] = bad_ratio_all
+    out_df["max_abs"] = max_abs_all
     return out_df, np.stack(features)
 
 

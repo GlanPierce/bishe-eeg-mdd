@@ -1,5 +1,7 @@
 # Documentation Index
 
+English | [简体中文](README.zh-CN.md)
+
 ## Benchmarks
 - `benchmarks/benchmark_summary.md`: the main benchmark sheet, with canonical full-dataset results and multistate subset results kept separate
 - `benchmarks/model_catalog.md`: clean model registry covering stable, comparator, and exploratory scripts

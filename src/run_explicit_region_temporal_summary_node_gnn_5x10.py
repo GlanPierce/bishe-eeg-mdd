@@ -16,7 +16,9 @@ from torch_geometric.data import Batch, Data
 
 from feature_model_utils import (
     aggregate_fold_results,
+    build_clean_window_static_graph_feature_table,
     build_static_graph_feature_table,
+    build_targeted_clean_temporal_summary_table,
     build_temporal_summary_table,
     calc_metrics,
     parse_seed_list,
@@ -325,6 +327,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--folds", type=int, default=10)
     p.add_argument("--seeds", type=str, default="42,43,44,45,46")
     p.add_argument("--c", type=float, default=1.0)
+    p.add_argument("--targeted-clean-bad-abs-threshold", type=float, default=None)
+    p.add_argument("--targeted-clean-bad-window-ratio", type=float, default=None)
+    p.add_argument("--targeted-clean-summary-abs-threshold", type=float, default=None)
+    p.add_argument("--targeted-static-clean-bad-window-ratio", type=float, default=None)
+    p.add_argument("--targeted-temporal-zero-bad-window-ratio", type=float, default=None)
     p.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"])
     p.add_argument("--out-dir", type=Path, default=Path("outputs/metrics/runs/explicit_region_temporal_summary_node_gnn_5x10"))
     p.add_argument("--experiment-name", type=str, default="explicit_region_temporal_summary_node_gnn_5x10")
@@ -347,13 +354,29 @@ def main() -> int:
         alpha_manifest=args.alpha_manifest,
         beta_manifest=args.beta_manifest,
     )
-    temporal_meta, temporal_x = build_temporal_summary_table(
-        split_csv=args.split_csv,
-        window_seconds=args.window_seconds,
-        step_seconds=args.step_seconds,
-        max_windows=args.max_windows,
-        max_seconds=args.max_seconds,
+    targeted_clean_enabled = (
+        args.targeted_clean_bad_abs_threshold is not None
+        and args.targeted_clean_bad_window_ratio is not None
     )
+    if targeted_clean_enabled:
+        temporal_meta, temporal_x = build_targeted_clean_temporal_summary_table(
+            split_csv=args.split_csv,
+            window_seconds=args.window_seconds,
+            step_seconds=args.step_seconds,
+            max_windows=args.max_windows,
+            max_seconds=args.max_seconds,
+            bad_window_abs_threshold=float(args.targeted_clean_bad_abs_threshold),
+            replace_bad_window_ratio=float(args.targeted_clean_bad_window_ratio),
+            clean_window_abs_threshold=args.targeted_clean_summary_abs_threshold,
+        )
+    else:
+        temporal_meta, temporal_x = build_temporal_summary_table(
+            split_csv=args.split_csv,
+            window_seconds=args.window_seconds,
+            step_seconds=args.step_seconds,
+            max_windows=args.max_windows,
+            max_seconds=args.max_seconds,
+        )
     merged = static_meta.merge(temporal_meta, on=["subject_id", "label"], how="inner").sort_values("subject_id").reset_index(drop=True)
     if int(len(merged)) != int(len(static_meta)) or int(len(merged)) != int(len(temporal_meta)):
         raise ValueError("Static and temporal tables did not align on identical subject sets.")
@@ -363,6 +386,42 @@ def main() -> int:
     subject_order = merged["subject_id"].tolist()
     static_x = np.stack([static_x[static_index[sid]] for sid in subject_order]).astype(np.float32)
     temporal_x = np.stack([temporal_x[temporal_index[sid]] for sid in subject_order]).astype(np.float32)
+    bad_window_ratio = merged["bad_window_ratio"].to_numpy(dtype=np.float32) if "bad_window_ratio" in merged.columns else None
+
+    static_clean_enabled = args.targeted_static_clean_bad_window_ratio is not None
+    if static_clean_enabled:
+        clean_static_meta, clean_static_x = build_clean_window_static_graph_feature_table(
+            split_csv=args.split_csv,
+            window_seconds=args.window_seconds,
+            step_seconds=args.step_seconds,
+            max_windows=args.max_windows,
+            max_seconds=args.max_seconds,
+            clean_window_abs_threshold=float(
+                args.targeted_clean_summary_abs_threshold
+                if args.targeted_clean_summary_abs_threshold is not None
+                else args.targeted_clean_bad_abs_threshold
+            ),
+        )
+        clean_static_index = {sid: idx for idx, sid in enumerate(clean_static_meta["subject_id"].tolist())}
+        clean_static_x = np.stack([clean_static_x[clean_static_index[sid]] for sid in subject_order]).astype(np.float32)
+        if bad_window_ratio is None:
+            raise ValueError("Static clean replacement requires bad_window_ratio diagnostics from temporal features.")
+        static_replace_mask = bad_window_ratio >= float(args.targeted_static_clean_bad_window_ratio)
+        static_x = static_x.copy()
+        static_x[static_replace_mask] = clean_static_x[static_replace_mask]
+    else:
+        static_replace_mask = np.zeros((len(subject_order),), dtype=bool)
+
+    temporal_zero_enabled = args.targeted_temporal_zero_bad_window_ratio is not None
+    if temporal_zero_enabled:
+        if bad_window_ratio is None:
+            raise ValueError("Temporal zeroing requires bad_window_ratio diagnostics from temporal features.")
+        temporal_zero_mask = bad_window_ratio >= float(args.targeted_temporal_zero_bad_window_ratio)
+        temporal_x = temporal_x.copy()
+        temporal_x[temporal_zero_mask] = 0.0
+    else:
+        temporal_zero_mask = np.zeros((len(subject_order),), dtype=bool)
+
     y = merged["label"].to_numpy(dtype=np.int64)
     subject_ids = merged["subject_id"].to_numpy()
 
@@ -463,6 +522,12 @@ def main() -> int:
                 "step_seconds": float(args.step_seconds),
                 "max_windows": int(args.max_windows),
                 "max_seconds": int(args.max_seconds),
+                "targeted_clean_enabled": bool(targeted_clean_enabled),
+                "targeted_clean_bad_abs_threshold": float(args.targeted_clean_bad_abs_threshold) if args.targeted_clean_bad_abs_threshold is not None else None,
+                "targeted_clean_bad_window_ratio": float(args.targeted_clean_bad_window_ratio) if args.targeted_clean_bad_window_ratio is not None else None,
+                "targeted_clean_summary_abs_threshold": float(args.targeted_clean_summary_abs_threshold) if args.targeted_clean_summary_abs_threshold is not None else None,
+                "targeted_static_clean_bad_window_ratio": float(args.targeted_static_clean_bad_window_ratio) if args.targeted_static_clean_bad_window_ratio is not None else None,
+                "targeted_temporal_zero_bad_window_ratio": float(args.targeted_temporal_zero_bad_window_ratio) if args.targeted_temporal_zero_bad_window_ratio is not None else None,
                 "region_keys": REGION_KEYS,
                 "temporal_group_keys": TEMPORAL_GROUP_KEYS,
             },
@@ -472,6 +537,13 @@ def main() -> int:
                 "n_region_nodes": int(n_region_nodes),
                 "n_temporal_group_nodes": int(n_temporal_group_nodes),
                 "n_total_nodes_without_global": int(expanded_x.shape[1]),
+            },
+            "temporal_cleaning": {
+                "n_replaced_subjects": int(merged["temporal_replaced"].sum()) if "temporal_replaced" in merged.columns else 0,
+                "mean_bad_window_ratio": float(merged["bad_window_ratio"].mean()) if "bad_window_ratio" in merged.columns else None,
+                "max_bad_window_ratio": float(merged["bad_window_ratio"].max()) if "bad_window_ratio" in merged.columns else None,
+                "n_static_clean_replaced_subjects": int(np.sum(static_replace_mask)),
+                "n_temporal_zero_subjects": int(np.sum(temporal_zero_mask)),
             },
             "aggregate": aggregate_fold_results(fold_results),
             "fold_results": fold_results,
@@ -495,6 +567,12 @@ def main() -> int:
             "step_seconds": float(args.step_seconds),
             "max_windows": int(args.max_windows),
             "max_seconds": int(args.max_seconds),
+            "targeted_clean_enabled": bool(targeted_clean_enabled),
+            "targeted_clean_bad_abs_threshold": float(args.targeted_clean_bad_abs_threshold) if args.targeted_clean_bad_abs_threshold is not None else None,
+            "targeted_clean_bad_window_ratio": float(args.targeted_clean_bad_window_ratio) if args.targeted_clean_bad_window_ratio is not None else None,
+            "targeted_clean_summary_abs_threshold": float(args.targeted_clean_summary_abs_threshold) if args.targeted_clean_summary_abs_threshold is not None else None,
+            "targeted_static_clean_bad_window_ratio": float(args.targeted_static_clean_bad_window_ratio) if args.targeted_static_clean_bad_window_ratio is not None else None,
+            "targeted_temporal_zero_bad_window_ratio": float(args.targeted_temporal_zero_bad_window_ratio) if args.targeted_temporal_zero_bad_window_ratio is not None else None,
             "region_keys": REGION_KEYS,
             "temporal_group_keys": TEMPORAL_GROUP_KEYS,
         },
@@ -504,6 +582,13 @@ def main() -> int:
             "n_region_nodes": int(n_region_nodes),
             "n_temporal_group_nodes": int(n_temporal_group_nodes),
             "n_total_nodes_without_global": int(expanded_x.shape[1]),
+        },
+        "temporal_cleaning": {
+            "n_replaced_subjects": int(merged["temporal_replaced"].sum()) if "temporal_replaced" in merged.columns else 0,
+            "mean_bad_window_ratio": float(merged["bad_window_ratio"].mean()) if "bad_window_ratio" in merged.columns else None,
+            "max_bad_window_ratio": float(merged["bad_window_ratio"].max()) if "bad_window_ratio" in merged.columns else None,
+            "n_static_clean_replaced_subjects": int(np.sum(static_replace_mask)),
+            "n_temporal_zero_subjects": int(np.sum(temporal_zero_mask)),
         },
         **summary,
     }

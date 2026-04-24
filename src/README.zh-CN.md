@@ -1,41 +1,42 @@
-# Source Index
+# 源码索引
 
-English | [简体中文](README.zh-CN.md)
+[English](README.md) | 简体中文
 
-`src/` contains three layers of code:
+`src/` 里的代码可以分成三层：
 
-1. Stable benchmark entry points
-2. Exploratory benchmark scripts
-3. Lower-level training and graph-building modules
+1. 稳定基准入口
+2. 探索性 benchmark 脚本
+3. 底层训练与图构建模块
 
-If you only need the main models, start from the first section and ignore the rest.
+如果你只关心主模型，从第一部分开始即可，后面的可以先忽略。
 
-## Stable benchmark entry points
+## 稳定基准入口
 - `build_graphs.py`
-  - Builds the canonical `TASK` graph inputs used by the main full-dataset benchmarks
+  - 构建完整 `TASK` 主基准所需的标准图输入
 - `run_static_feature_node_gnn_5x10.py`
-  - Stable static pure-GNN baseline on the full `61`-subject benchmark
+  - `61` 人主基准上的稳定静态纯 GNN 基线
 - `run_explicit_region_temporal_summary_node_gnn_5x10.py`
-  - Current primary full-dataset pure-GNN benchmark
+  - 当前完整数据集主力纯 GNN 入口
+  - 现在支持 `--targeted-clean-*`、`--targeted-static-clean-*` 和 `--targeted-temporal-zero-*` 这组受试者级伪迹修复参数
 - `run_multistate_explicit_region_temporal_node_gnn_5x10.py`
-  - Multistate pure-GNN entry point for complete-state subsets such as `TASK+EC+EO`
-  - Also supports objective EEG artifact filtering through `--qc-*` flags; the current strongest multistate result uses this script with QC enabled
+  - 面向完整状态子集（如 `TASK+EC+EO`）的多状态纯 GNN 入口
+  - 同时支持 `--qc-*` 客观伪迹过滤参数；当前最强多状态结果就是这条路线
 
-## Comparator or historical reference scripts
+## 对照或历史参考脚本
 - `train_baseline.py`
-  - Early non-GNN baseline and split generation
+  - 早期非 GNN 基线和数据划分生成
 - `run_static_topk_5x10.py`
-  - Earlier static top-k benchmark route
+  - 更早期的静态 top-k 路线
 - `run_static_gnn_graphfeature_residual_5x10.py`
-  - Residual graph-feature comparator
+  - graph-feature residual 对照
 - `run_static_gnn_graphvector_hybrid_5x10.py`
-  - Static hybrid comparator
+  - 静态 hybrid 对照
 - `run_static_flatreadout_graphvector_hybrid_5x10.py`
-  - Static flat-readout comparator
+  - 静态 flat-readout 对照
 - `run_benchmarks.py`
-  - Historical benchmark wrapper
+  - 历史 benchmark wrapper
 
-## Exploratory pure-GNN scripts
+## 探索性纯 GNN 脚本
 - `run_region_temporal_feature_node_gnn_5x10.py`
 - `run_explicit_region_temporal_dynamics_node_gnn_5x10.py`
 - `run_explicit_region_temporal_dynamics_graphconv_5x10.py`
@@ -46,9 +47,9 @@ If you only need the main models, start from the first section and ignore the re
 - `run_spatiotemporal_pyc_multiinit_5x10.py`
 - `run_spatiotemporal_regiongat_multiinit_5x10.py`
 
-These are worth keeping, but they are still research routes rather than the clean benchmark headline.
+这些脚本值得保留，但仍属于研究推进路线，不是当前最干净的 benchmark 主线。
 
-## Ensemble and selector scripts
+## 集成和选择脚本
 - `run_pure_gnn_ensemble_cv10.py`
 - `run_region_temporal_validation_selector_5x10.py`
 - `run_flatreadout_multiinit_ensemble_cv10.py`
@@ -56,9 +57,9 @@ These are worth keeping, but they are still research routes rather than the clea
 - `run_spatiotemporal_snapshot_ensemble_cv10.py`
 - `run_spatiotemporal_multiinit_ensemble_cv10.py`
 
-Treat these as utilities for search, probing, or ensembling. They are not the default single-model report line.
+把这些当成搜索、探测或集成工具即可，不要默认当成单模型汇报线。
 
-## Lower-level training modules
+## 底层训练模块
 - `train_gnn.py`
 - `train_gnn_cv10.py`
 - `train_gnn_multiband_cv10.py`
@@ -74,4 +75,4 @@ Treat these as utilities for search, probing, or ensembling. They are not the de
 - `train_gnn_spatiotemporal_cv10.py`
 - `train_nongnn_cv10.py`
 
-These are implementation modules or older training entry points. Use them only if you are intentionally reproducing an older line or building a new benchmark script on top of them.
+这些是实现模块或更早期的训练入口。只有在你明确要复现旧路线或在其上搭新 benchmark 脚本时才需要直接使用。
