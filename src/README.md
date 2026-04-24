@@ -14,9 +14,10 @@ If you only need the main models, start from the first section and ignore the re
 - `build_graphs.py`
   - Builds the canonical `TASK` graph inputs used by the main full-dataset benchmarks
 - `run_static_feature_node_gnn_5x10.py`
-  - Stable static pure-GNN baseline on the full `61`-subject benchmark
+  - Stable clean static pure-GNN baseline on the full `61`-subject benchmark (`0.9010`)
 - `run_explicit_region_temporal_summary_node_gnn_5x10.py`
-  - Current primary full-dataset pure-GNN benchmark
+  - Clean primary full-dataset pure-GNN benchmark on the full `61`-subject benchmark (`0.9143`) when run without targeted repair flags
+  - The same script also supports a separate benchmark-tuned targeted-repair variant (`0.9343`), which should not be mixed into the clean benchmark story
 - `run_multistate_explicit_region_temporal_node_gnn_5x10.py`
   - Multistate pure-GNN entry point for complete-state subsets such as `TASK+EC+EO`
   - Also supports objective EEG artifact filtering through `--qc-*` flags; the current strongest multistate result uses this script with QC enabled
@@ -75,3 +76,9 @@ Treat these as utilities for search, probing, or ensembling. They are not the de
 - `train_nongnn_cv10.py`
 
 These are implementation modules or older training entry points. Use them only if you are intentionally reproducing an older line or building a new benchmark script on top of them.
+
+## Reporting guardrails
+- Use `run_explicit_region_temporal_summary_node_gnn_5x10.py` without targeted repair flags when the report must stay on the clean canonical full `61`-subject benchmark.
+- If you use the targeted-repair setting with `clean250 + static_clean>=0.33 + temporal_zero>=0.33`, report it separately as a benchmark-tuned artifact-aware repair variant rather than the clean benchmark line.
+- Use `run_multistate_explicit_region_temporal_node_gnn_5x10.py` only when the report explicitly says it is a complete-state multistate subset experiment.
+- Do not present selector or ensemble scripts as if they were a single pure-GNN benchmark model.

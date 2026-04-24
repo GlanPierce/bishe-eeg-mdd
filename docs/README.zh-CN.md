@@ -3,7 +3,7 @@
 [English](README.md) | 简体中文
 
 ## 基准文档
-- `benchmarks/benchmark_summary.md` / `benchmarks/benchmark_summary.zh-CN.md`：主基准摘要，区分 `61` 人主基准和多状态子集结果
+- `benchmarks/benchmark_summary.md` / `benchmarks/benchmark_summary.zh-CN.md`：主基准摘要，明确区分 clean 的 `61` 人主基准、benchmark-tuned 修复版和多状态子集结果
 - `benchmarks/model_catalog.md` / `benchmarks/model_catalog.zh-CN.md`：稳定、对照、探索脚本的模型清单
 
 ## 笔记

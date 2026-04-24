@@ -18,13 +18,22 @@
 - 划分方式：受试者级分层交叉验证
 - 稳定性报告：`5 seeds x 10 folds`
 
-### 推荐模型
+### A1. Clean 基准结果
+这些是较低过拟合风险的完整数据集结果，不使用针对当前数据集调过的受试者级修复规则。
+
 | 方法 | 脚本 | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
 |---|---|---:|---:|---:|---:|
 | 静态纯 GNN (`FeatureNodeGNN`) | `src/run_static_feature_node_gnn_5x10.py` | `0.9010 +/- 0.0106` | `0.8950 +/- 0.0081` | `0.9066 +/- 0.0138` | `0.9456 +/- 0.0227` |
-| 显式脑区 + 时间摘要纯 GNN (`ExplicitRegionTemporalWeightedStarGNN`) + 定向伪迹修复 | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | **`0.9343 +/- 0.0012`** | **`0.9283 +/- 0.0041`** | **`0.9412 +/- 0.0021`** | **`0.9581 +/- 0.0190`** |
+| 显式脑区 + 时间摘要纯 GNN (`ExplicitRegionTemporalWeightedStarGNN`) | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | **`0.9143 +/- 0.0060`** | **`0.9100 +/- 0.0086`** | **`0.9173 +/- 0.0054`** | **`0.9708 +/- 0.0126`** |
 
-### 当前推荐的 61 人参数
+### A2. Benchmark-tuned 伪迹感知修复版
+这条线保留全部 `61` 名受试者，但增加了针对当前 benchmark 调过的受试者级修复规则。它必须和 clean 基准分开汇报，因为 benchmark-overfitting 风险更高。
+
+| 方法 | 脚本 | Accuracy | Balanced Accuracy | F1 | ROC-AUC |
+|---|---|---:|---:|---:|---:|
+| 显式脑区 + 时间摘要纯 GNN (`ExplicitRegionTemporalWeightedStarGNN`) + 定向伪迹修复 | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py`，配合 targeted repair 参数 | **`0.9343 +/- 0.0012`** | **`0.9283 +/- 0.0041`** | **`0.9412 +/- 0.0021`** | **`0.9581 +/- 0.0190`** |
+
+### A2 的修复参数
 - `--c 0.25`
 - `--targeted-clean-bad-abs-threshold 0.00025`
 - `--targeted-clean-bad-window-ratio 0.16`
@@ -56,6 +65,7 @@
 ## 主要结果文件
 - 61 人主基准：
   - `outputs/metrics/runs/static_feature_weightedstar_5x10_thracc_widethr/summary_5x10.json`
+  - `outputs/metrics/runs/explicit_region_temporal_summary_node_gnn_5x10/summary_5x10.json`
   - `outputs/metrics/runs/explicit_region_temporal_summary_targeted_clean250_staticclean033_tempzero033_c025_5x10/summary_5x10.json`
 - 多状态完整子集：
   - `outputs/metrics/runs/multistate_explicit_region_temporal_node_gnn_5x10_v2/summary_5x10.json`
@@ -65,7 +75,8 @@
   - `outputs/metrics/runs/multistate_task_eo_5x10/summary_5x10.json`
 
 ## 实际建议
-- 如果目标是论文主结果，使用带上述 targeted cleaning 参数的 `run_explicit_region_temporal_summary_node_gnn_5x10.py`。
+- 如果目标是论文主结果且希望降低 benchmark-overfitting 风险，默认使用不带 targeted repair 参数的 clean `0.9143` 结果。
+- 如果要汇报 `0.9343` 的完整数据集结果，必须明确标注为 benchmark-tuned 的伪迹感知修复版，并与 clean 基准分开。
 - 如果目标是多状态纯 GNN 研究，使用 `run_multistate_explicit_region_temporal_node_gnn_5x10.py`。
 - 如果目标是最强多状态结果，使用同一脚本并加上客观 QC 参数；这条线最终保留 `38/53` 人。
 - 如果需要区分稳定模型、探索脚本和探路脚本，参见 `docs/benchmarks/model_catalog.zh-CN.md`。

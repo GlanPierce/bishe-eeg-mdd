@@ -3,7 +3,7 @@
 English | [简体中文](README.zh-CN.md)
 
 ## Benchmarks
-- `benchmarks/benchmark_summary.md`: the main benchmark sheet, with canonical full-dataset results and multistate subset results kept separate
+- `benchmarks/benchmark_summary.md`: the main benchmark sheet, explicitly separating clean canonical full-dataset results, benchmark-tuned repair variants, and multistate subset results
 - `benchmarks/model_catalog.md`: clean model registry covering stable, comparator, and exploratory scripts
 
 ## Notes

@@ -10,11 +10,18 @@
 | 层级 | 家族 | 脚本 | 范围 | 当前最佳结果 | 说明 |
 |---|---|---|---|---|---|
 | Stable | 静态纯 GNN | `src/run_static_feature_node_gnn_5x10.py` | `61` 人，`TASK` | `0.9010` acc | 完整主基准上的静态纯 GNN 基线 |
-| Stable | 显式脑区 + 时间摘要纯 GNN | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | `61` 人，`TASK` | `0.9343` acc | 当前完整数据集主力纯 GNN；对最差受试者做定向 temporal cleaning、static clean replacement 和 temporal zero repair |
+| Stable | 显式脑区 + 时间摘要纯 GNN | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py` | `61` 人，`TASK` | `0.9143` acc | 当前 clean 的完整数据集主力纯 GNN 结果 |
 | Stable | 多状态显式脑区时空纯 GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` | 完整状态子集 | `0.9260` acc on `TASK+EC+EO` | 完整状态子集上的干净多状态基线 |
 | Stable | 多状态 QC 显式脑区时空纯 GNN | `src/run_multistate_explicit_region_temporal_node_gnn_5x10.py` 加 QC 参数 | QC 过滤完整状态子集 | `0.9750` acc on `38` 人 | 当前最强多状态路线；使用客观伪迹过滤 (`max_abs` + impulsive-window rule) |
 
-## 2. 对照与历史参考脚本
+## 2. Benchmark-tuned 的完整数据集变体
+这些结果仍然可复现，也有工程价值，但因为用了针对当前数据集调过的修复规则，benchmark-overfitting 风险更高，所以要和 clean 基准分开汇报。
+
+| 层级 | 家族 | 脚本 | 范围 | 当前最佳结果 | 说明 |
+|---|---|---|---|---|---|
+| Benchmark-tuned | 显式脑区 + 时间摘要纯 GNN + 定向修复 | `src/run_explicit_region_temporal_summary_node_gnn_5x10.py`，配合 targeted repair 参数 | `61` 人，`TASK` | `0.9343` acc | 对最差受试者做 targeted temporal cleaning、static clean replacement 和 temporal zero repair |
+
+## 3. 对照与历史参考脚本
 这些脚本适合做受控比较或保留历史记录，但不是当前论文主叙事里的纯 GNN 主线。
 
 | 层级 | 家族 | 脚本 | 状态 | 说明 |
@@ -26,7 +33,7 @@
 | Comparator | 静态 flat-readout hybrid | `src/run_static_flatreadout_graphvector_hybrid_5x10.py` | Reference only | 适合做消融，不是主纯 GNN 口径 |
 | Comparator | 历史 benchmark wrapper | `src/run_benchmarks.py` | Reference only | 汇总更早期的 benchmark 路线 |
 
-## 3. 探索性纯 GNN 路线
+## 4. 探索性纯 GNN 路线
 这些是当前仍在推进的研究脚本，应该保留，但不应默认作为主结果。
 
 | 层级 | 家族 | 脚本 | 当前状态 | 说明 |
@@ -41,7 +48,7 @@
 | Exploratory | Spatiotemporal PYC multi-init | `src/run_spatiotemporal_pyc_multiinit_5x10.py` | Probe stage | 多初始化时空版本 |
 | Exploratory | Spatiotemporal region-GAT | `src/run_spatiotemporal_regiongat_multiinit_5x10.py` | Probe stage | 脑区感知注意力路线 |
 
-## 4. 集成和选择类脚本
+## 5. 集成和选择类脚本
 这些脚本适合搜索、集成和探测，但不能被当成单一模型 benchmark。
 
 | 层级 | 家族 | 脚本 | 说明 |
@@ -53,7 +60,7 @@
 | Research utility | Spatiotemporal snapshot ensemble | `src/run_spatiotemporal_snapshot_ensemble_cv10.py` | 搜索/集成辅助 |
 | Research utility | Spatiotemporal multi-init ensemble | `src/run_spatiotemporal_multiinit_ensemble_cv10.py` | 搜索/集成辅助 |
 
-## 5. 底层训练模块
+## 6. 底层训练模块
 这些更像构件，而不是建议直接汇报的顶层 benchmark 脚本。
 
 | 层级 | 家族 | 脚本 |
@@ -61,9 +68,9 @@
 | Core modules | 图构建与工具 | `src/build_graphs.py`, `src/feature_model_utils.py` |
 | Legacy training entry points | 静态 / multiband / dual-graph / spatiotemporal trainers | `src/train_gnn*.py`, `src/train_nongnn_cv10.py` |
 
-## 6. 汇报约定
-- 当报告必须保持在完整 `61` 人主基准上时，使用 `run_explicit_region_temporal_summary_node_gnn_5x10.py`。
-- 当前推荐的 `61` 人设置是 targeted-repair 版本：`clean250 + static_clean>=0.33 + temporal_zero>=0.33`，结果目录在 `outputs/metrics/runs/explicit_region_temporal_summary_targeted_clean250_staticclean033_tempzero033_c025_5x10/`。
+## 7. 汇报约定
+- 当报告必须保持在完整 `61` 人主基准上时，默认使用不带 targeted repair 参数的 `run_explicit_region_temporal_summary_node_gnn_5x10.py`。
+- 如果使用 `clean250 + static_clean>=0.33 + temporal_zero>=0.33` 这一组 targeted repair 设置，必须单独标注为 benchmark-tuned 的伪迹感知修复版；结果目录在 `outputs/metrics/runs/explicit_region_temporal_summary_targeted_clean250_staticclean033_tempzero033_c025_5x10/`。
 - 只有在报告明确说明是完整状态多状态子集实验时，才使用 `run_multistate_explicit_region_temporal_node_gnn_5x10.py`。
 - 汇报最强多状态结果时，要同时给出 QC 阈值和过滤后的受试者数量，因为 `0.9750` 是质量控制后的子集结果，不是原始 `53` 人完整状态池。
 - 不要把 selector 或 ensemble 脚本包装成单一纯 GNN benchmark 模型。

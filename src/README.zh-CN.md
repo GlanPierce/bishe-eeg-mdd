@@ -14,10 +14,10 @@
 - `build_graphs.py`
   - 构建完整 `TASK` 主基准所需的标准图输入
 - `run_static_feature_node_gnn_5x10.py`
-  - `61` 人主基准上的稳定静态纯 GNN 基线
+  - `61` 人主基准上的稳定 clean 静态纯 GNN 基线（`0.9010`）
 - `run_explicit_region_temporal_summary_node_gnn_5x10.py`
-  - 当前完整数据集主力纯 GNN 入口
-  - 现在支持 `--targeted-clean-*`、`--targeted-static-clean-*` 和 `--targeted-temporal-zero-*` 这组受试者级伪迹修复参数
+  - 不带 targeted repair 参数时，它是完整 `61` 人主基准上的 clean 主力纯 GNN 入口（`0.9143`）
+  - 同一个脚本也支持 `--targeted-clean-*`、`--targeted-static-clean-*` 和 `--targeted-temporal-zero-*` 这组受试者级伪迹修复参数；对应的是单独汇报的 benchmark-tuned 版本（`0.9343`）
 - `run_multistate_explicit_region_temporal_node_gnn_5x10.py`
   - 面向完整状态子集（如 `TASK+EC+EO`）的多状态纯 GNN 入口
   - 同时支持 `--qc-*` 客观伪迹过滤参数；当前最强多状态结果就是这条路线
@@ -76,3 +76,9 @@
 - `train_nongnn_cv10.py`
 
 这些是实现模块或更早期的训练入口。只有在你明确要复现旧路线或在其上搭新 benchmark 脚本时才需要直接使用。
+
+## 汇报边界
+- 当汇报必须保持在完整 `61` 人主基准上时，默认使用不带 targeted repair 参数的 `run_explicit_region_temporal_summary_node_gnn_5x10.py`。
+- 如果使用 `clean250 + static_clean>=0.33 + temporal_zero>=0.33` 这一组 targeted repair 设置，必须单独标注为 benchmark-tuned 的伪迹感知修复版，而不是 clean 主基准。
+- 只有在报告明确说明是完整状态多状态子集实验时，才使用 `run_multistate_explicit_region_temporal_node_gnn_5x10.py`。
+- 不要把 selector 或 ensemble 脚本包装成单一纯 GNN benchmark 模型。
