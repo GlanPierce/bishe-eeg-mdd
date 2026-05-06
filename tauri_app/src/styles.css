@@ -366,6 +366,30 @@ small,
   overflow-wrap: anywhere;
 }
 
+.data-summary {
+  min-height: 64px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 9px 10px;
+}
+
+.data-summary small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(244, 247, 248, 0.72);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-summary small + small {
+  color: rgba(244, 247, 248, 0.54);
+}
+
 .inference-progress {
   display: flex;
   flex-direction: column;
@@ -663,6 +687,26 @@ small,
   background: #000000;
 }
 
+.reset-view-button {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 14;
+  height: 34px;
+  min-width: 72px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 7px;
+  background: rgba(12, 16, 18, 0.72);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.reset-view-button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .brain-scene canvas {
   display: block;
   width: 100%;
@@ -785,6 +829,7 @@ small,
   padding: 0;
   pointer-events: none;
   background: transparent;
+  border-bottom: 0;
 }
 
 .table-panel {

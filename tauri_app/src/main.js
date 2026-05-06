@@ -119,6 +119,7 @@ app.innerHTML = `
             <span>标准 10-20 EEG 位置叠加 PCC Top 连接，点击节点查看信息</span>
           </div>
           <div id="networkChart" class="brain-scene">
+            <button id="resetView" class="reset-view-button" type="button" title="重置视角">重置</button>
             <div id="nodeTooltip" class="node-tooltip hidden"></div>
           </div>
         </section>
@@ -206,8 +207,14 @@ const els = {
   consoleOutput: $('consoleOutput'),
   edgeRows: $('edgeRows'),
   networkChart: $('networkChart'),
+  resetView: $('resetView'),
   nodeTooltip: $('nodeTooltip')
 };
+
+const dataSummary = document.createElement('div');
+dataSummary.className = 'data-summary';
+els.fileSource.parentElement.insertBefore(dataSummary, els.fileSource);
+dataSummary.append(els.fileSource, els.fileMeta);
 
 let customModel = '';
 let selectedEdf = '';
@@ -240,9 +247,9 @@ const charts = {
 };
 
 const chartPalette = {
-  positive: '#f1f5f9',
-  negative: '#7c8792',
-  left: '#c9d1d9',
+  positive: '#ffffff',
+  negative: '#59636f',
+  left: '#8f9aa6',
   right: '#ffffff',
   grid: 'rgba(255, 255, 255, 0.08)',
   axis: 'rgba(255, 255, 255, 0.36)',
@@ -1219,6 +1226,18 @@ function setBrainCamera() {
   brain.canvas.trackball?.update?.();
 }
 
+function resetBrainView() {
+  if (!brain.canvas) return;
+  cancelBrainFocusAnimation();
+  hideNodeTooltip();
+  clearBrainRegionHighlight();
+  setSelectedNodeGlow(null);
+  brain.canvas.origin.quaternion.identity();
+  brain.canvas.origin.position.set(0, 0, 0);
+  setBrainCamera();
+  brain.canvas.needsUpdate = true;
+}
+
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - ((-2 * t + 2) ** 3) / 2;
 }
@@ -1325,7 +1344,27 @@ function focusFadeForNode(name) {
   const node = findRenderedNode(name);
   if (!focused || !node) return 1;
   const distance = new THREE.Vector3(focused.x, focused.y, focused.z).distanceTo(new THREE.Vector3(node.x, node.y, node.z));
-  return THREE.MathUtils.clamp(1 - distance / 98, 0.08, 0.58);
+  return THREE.MathUtils.clamp((1 - distance / 72) * 0.34, 0.015, 0.22);
+}
+
+function focusFadeForEdge(edge) {
+  if (!brain.focusedNodeName) return 1;
+  const sourceFocused = edge.userData.sourceName === brain.focusedNodeName;
+  const targetFocused = edge.userData.targetName === brain.focusedNodeName;
+  const sourceFade = focusFadeForNode(edge.userData.sourceName);
+  const targetFade = focusFadeForNode(edge.userData.targetName);
+  if (sourceFocused || targetFocused) {
+    const otherFade = sourceFocused ? targetFade : sourceFade;
+    return THREE.MathUtils.clamp(otherFade * 0.72, 0.035, 0.18);
+  }
+  return Math.max(sourceFade, targetFade) * 0.28;
+}
+
+function hideNodeTooltip() {
+  if (brain.activeTooltipNode) setNodeLabelVisible(brain.activeTooltipNode, true);
+  brain.activeTooltipNode = null;
+  els.nodeTooltip.classList.add('hidden');
+  clearEdgeJumpLabels();
 }
 
 function applyFocusFade(name) {
@@ -1349,14 +1388,10 @@ function applyFocusFade(name) {
     }
   });
   brain.edgeObjects.forEach((edge) => {
-    const sourceFade = focusFadeForNode(edge.userData.sourceName);
-    const targetFade = focusFadeForNode(edge.userData.targetName);
-    edge.material.opacity = (edge.userData.baseOpacity ?? 0.42) * Math.max(sourceFade, targetFade);
+    edge.material.opacity = (edge.userData.baseOpacity ?? 0.42) * focusFadeForEdge(edge);
   });
   brain.signalObjects.forEach((signal) => {
-    const sourceFade = focusFadeForNode(signal.userData.sourceName);
-    const targetFade = focusFadeForNode(signal.userData.targetName);
-    signal.userData.focusFade = Math.max(sourceFade, targetFade);
+    signal.userData.focusFade = focusFadeForEdge(signal);
   });
   if (brain.canvas) brain.canvas.needsUpdate = true;
 }
@@ -1578,6 +1613,7 @@ function cancelBrainFocusAnimation() {
 
 function focusNode(node, onComplete = null) {
   if (!brain.canvas || !node) return;
+  hideNodeTooltip();
   const normal = node.normal
     ? new THREE.Vector3(node.normal.x, node.normal.y, node.normal.z).normalize()
     : new THREE.Vector3(node.x, node.y, node.z - 18).normalize();
@@ -1616,6 +1652,7 @@ async function initBrainScene() {
   setStartupProgress(18);
   const tooltip = els.nodeTooltip;
   els.networkChart.innerHTML = '';
+  els.networkChart.appendChild(els.resetView);
   els.networkChart.appendChild(tooltip);
   brain.raycaster = new THREE.Raycaster();
   brain.pointer = new THREE.Vector2();
@@ -1705,6 +1742,8 @@ function setupBrainInteraction() {
       const panScale = 0.72 / Math.max(0.35, brain.canvas.mainCamera.zoom);
       brain.canvas.origin.position.x += dx * panScale;
       brain.canvas.origin.position.y -= dy * panScale;
+      brain.canvas.origin.position.x = THREE.MathUtils.clamp(brain.canvas.origin.position.x, -150, 150);
+      brain.canvas.origin.position.y = THREE.MathUtils.clamp(brain.canvas.origin.position.y, -120, 120);
     } else {
       const currentVector = arcballVector(event);
       const rotation = new THREE.Quaternion().setFromUnitVectors(brain.drag.vector, currentVector);
@@ -1742,20 +1781,14 @@ function handleBrainClick(event) {
   const hits = brain.raycaster.intersectObjects(brain.nodeObjects, false);
   if (hits.length) {
     const node = hits[0].object.userData.eegNode;
-    if (brain.activeTooltipNode) setNodeLabelVisible(brain.activeTooltipNode, true);
-    brain.activeTooltipNode = null;
-    els.nodeTooltip.classList.add('hidden');
-    clearEdgeJumpLabels();
+    hideNodeTooltip();
     setSelectedNodeGlow(node.name);
     setBrainRegionHighlight(node);
     focusNode(node, () => showNodeTooltip(node, event));
   } else {
-    if (brain.activeTooltipNode) setNodeLabelVisible(brain.activeTooltipNode, true);
-    brain.activeTooltipNode = null;
-    els.nodeTooltip.classList.add('hidden');
+    hideNodeTooltip();
     clearBrainRegionHighlight();
     setSelectedNodeGlow(null);
-    clearEdgeJumpLabels();
   }
 }
 
@@ -1900,7 +1933,13 @@ function renderUnifiedRegion(payload) {
     series: [{
       type: 'bar',
       barWidth: 14,
-      data: rows.map((row) => ({ value: row.contribution, itemStyle: { color: valueColor(row.contribution), borderRadius: [0, 5, 5, 0] } })),
+      data: rows.map((row) => ({
+        value: row.contribution,
+        itemStyle: {
+          color: valueColor(row.contribution),
+          borderRadius: row.contribution >= 0 ? [0, 5, 5, 0] : [5, 0, 0, 5]
+        }
+      })),
       label: { show: true, position: 'right', color: '#f4f7f8', formatter: (item) => fmt(item.value, 3) }
     }]
   });
@@ -1931,9 +1970,46 @@ function renderUnifiedTemporal(payload) {
     series: [{
       type: 'bar',
       barWidth: 18,
-      data: rows.map((row) => ({ value: row.contribution, itemStyle: { color: valueColor(row.contribution), borderRadius: [5, 5, 0, 0] } })),
+      data: rows.map((row) => ({
+        value: row.contribution,
+        itemStyle: {
+          color: valueColor(row.contribution),
+          borderRadius: row.contribution >= 0 ? [5, 5, 0, 0] : [0, 0, 5, 5]
+        }
+      })),
       label: { show: true, position: 'top', color: '#f4f7f8', formatter: (item) => fmt(item.value, 3) }
     }]
+  });
+}
+
+function renderUnifiedAsymmetryFixed(payload) {
+  const rows = payload.visualization.asymmetry;
+  charts.asym.setOption({
+    ...baseChartStyle,
+    grid: { left: 70, right: 20, top: 24, bottom: 42 },
+    legend: { bottom: 0, data: ['左侧', '右侧'], textStyle: { color: chartPalette.text } },
+    xAxis: chartAxis('category', rows.map((row) => row.region)),
+    yAxis: chartAxis('value'),
+    series: [
+      {
+        name: '左侧',
+        type: 'bar',
+        barWidth: 13,
+        data: rows.map((row) => ({
+          value: row.left,
+          itemStyle: { color: chartPalette.left, borderRadius: row.left >= 0 ? [5, 5, 0, 0] : [0, 0, 5, 5] }
+        }))
+      },
+      {
+        name: '右侧',
+        type: 'bar',
+        barWidth: 13,
+        data: rows.map((row) => ({
+          value: row.right,
+          itemStyle: { color: chartPalette.right, borderRadius: row.right >= 0 ? [5, 5, 0, 0] : [0, 0, 5, 5] }
+        }))
+      }
+    ]
   });
 }
 
@@ -1942,7 +2018,7 @@ function render(payload) {
   renderRisk(payload);
   renderNetwork(payload);
   renderUnifiedRegion(payload);
-  renderUnifiedAsymmetry(payload);
+  renderUnifiedAsymmetryFixed(payload);
   renderUnifiedTemporal(payload);
   renderEdges(payload);
   resizeCharts();
@@ -2033,6 +2109,11 @@ els.sidebarToggle.addEventListener('click', () => {
 });
 
 els.consoleClose.addEventListener('click', () => toggleConsole(false));
+els.resetView.addEventListener('click', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  resetBrainView();
+});
 els.consoleHead.addEventListener('pointerdown', (event) => {
   if (event.target === els.consoleClose) return;
   const rect = els.consolePanel.getBoundingClientRect();
