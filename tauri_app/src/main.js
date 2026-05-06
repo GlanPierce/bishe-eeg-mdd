@@ -1085,8 +1085,8 @@ function addEdgeObject(edge, nodeById, curveOffset = 0) {
       uniform float focusActive;
       varying float vDistanceFade;
       void main() {
-        float proximity = clamp(1.0 - distance(position, focusCenter) / 135.0, 0.0, 1.0);
-        float focusFade = mix(0.025, 1.0, pow(proximity, 1.35));
+        float proximity = clamp(1.0 - distance(position, focusCenter) / 105.0, 0.0, 1.0);
+        float focusFade = mix(0.008, 1.0, pow(proximity, 1.85));
         vDistanceFade = mix(1.0, focusFade, focusActive);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
@@ -1159,8 +1159,8 @@ function addConnectionSignalObject(curve, strength, sourceName, targetName) {
         float head = exp(-d * d / (0.0022 + strength * 0.0018));
         float tailDistance = mod(phase - pathT + 1.0, 1.0);
         float tail = exp(-tailDistance * tailDistance / 0.0065) * 0.28;
-        float proximity = clamp(1.0 - distance(position, focusCenter) / 135.0, 0.0, 1.0);
-        float distanceFade = mix(1.0, mix(0.025, 1.0, pow(proximity, 1.35)), focusActive);
+        float proximity = clamp(1.0 - distance(position, focusCenter) / 105.0, 0.0, 1.0);
+        float distanceFade = mix(1.0, mix(0.008, 1.0, pow(proximity, 1.85)), focusActive);
         vAlpha = clamp((head + tail) * (0.72 + strength * 0.58) * fade * distanceFade, 0.0, 0.82);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
@@ -1375,8 +1375,8 @@ function focusFadeForNode(name) {
   const node = findRenderedNode(name);
   if (!focused || !node) return 1;
   const distance = new THREE.Vector3(focused.x, focused.y, focused.z).distanceTo(new THREE.Vector3(node.x, node.y, node.z));
-  const proximity = THREE.MathUtils.clamp(1 - distance / 135, 0, 1);
-  return THREE.MathUtils.lerp(0.035, 0.92, proximity ** 1.35);
+  const proximity = THREE.MathUtils.clamp(1 - distance / 105, 0, 1);
+  return THREE.MathUtils.lerp(0.012, 0.95, proximity ** 1.85);
 }
 
 function focusFadeForEdge(edge) {
