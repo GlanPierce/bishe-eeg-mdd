@@ -1070,18 +1070,41 @@ function addEdgeObject(edge, nodeById, curveOffset = 0) {
   if (!source || !target) return;
   const strength = Math.max(0.08, Math.min(1, Number(edge.score || edge.strength || Math.abs(edge.value) || 0.2)));
   const curve = makeConnectionCurve(source, target, strength, curveOffset);
-  const material = new THREE.MeshBasicMaterial({
-    color: '#ffffff',
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      color: { value: new THREE.Color('#ffffff') },
+      baseOpacity: { value: 0.34 + strength * 0.42 },
+      focusCenter: { value: new THREE.Vector3() },
+      focusActive: { value: 0 }
+    },
     transparent: true,
-    opacity: 0.34 + strength * 0.42,
     depthTest: true,
-    depthWrite: false
+    depthWrite: false,
+    vertexShader: `
+      uniform vec3 focusCenter;
+      uniform float focusActive;
+      varying float vDistanceFade;
+      void main() {
+        float proximity = clamp(1.0 - distance(position, focusCenter) / 135.0, 0.0, 1.0);
+        float focusFade = mix(0.025, 1.0, pow(proximity, 1.35));
+        vDistanceFade = mix(1.0, focusFade, focusActive);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 color;
+      uniform float baseOpacity;
+      varying float vDistanceFade;
+      void main() {
+        gl_FragColor = vec4(color, baseOpacity * vDistanceFade);
+      }
+    `
   });
   const mesh = new THREE.Mesh(makeConnectionGeometry(curve, strength), material);
   mesh.userData.edge = edge;
   mesh.userData.sourceName = source.name;
   mesh.userData.targetName = target.name;
-  mesh.userData.baseOpacity = material.opacity;
+  mesh.userData.baseOpacity = material.uniforms.baseOpacity.value;
   mesh.renderOrder = 5;
   brain.canvas.add_to_scene(mesh);
   brain.edgeObjects.push(mesh);
@@ -1114,6 +1137,8 @@ function addConnectionSignalObject(curve, strength, sourceName, targetName) {
       time: { value: 0 },
       strength: { value: strength },
       fade: { value: 1 },
+      focusCenter: { value: new THREE.Vector3() },
+      focusActive: { value: 0 },
       color: { value: new THREE.Color('#ffffff') }
     },
     transparent: true,
@@ -1125,6 +1150,8 @@ function addConnectionSignalObject(curve, strength, sourceName, targetName) {
       uniform float time;
       uniform float strength;
       uniform float fade;
+      uniform vec3 focusCenter;
+      uniform float focusActive;
       varying float vAlpha;
       void main() {
         float phase = fract(time * (0.24 + strength * 0.26));
@@ -1132,7 +1159,9 @@ function addConnectionSignalObject(curve, strength, sourceName, targetName) {
         float head = exp(-d * d / (0.0022 + strength * 0.0018));
         float tailDistance = mod(phase - pathT + 1.0, 1.0);
         float tail = exp(-tailDistance * tailDistance / 0.0065) * 0.28;
-        vAlpha = clamp((head + tail) * (0.72 + strength * 0.58) * fade, 0.0, 0.82);
+        float proximity = clamp(1.0 - distance(position, focusCenter) / 135.0, 0.0, 1.0);
+        float distanceFade = mix(1.0, mix(0.025, 1.0, pow(proximity, 1.35)), focusActive);
+        vAlpha = clamp((head + tail) * (0.72 + strength * 0.58) * fade * distanceFade, 0.0, 0.82);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -1158,6 +1187,8 @@ function addConnectionSignalObject(curve, strength, sourceName, targetName) {
     time: { value: 0 },
     strength: { value: strength },
     fade: { value: 0.46 },
+    focusCenter: { value: new THREE.Vector3() },
+    focusActive: { value: 0 },
     color: { value: new THREE.Color('#ffffff') }
   };
   haloMaterial.blending = THREE.AdditiveBlending;
@@ -1344,20 +1375,20 @@ function focusFadeForNode(name) {
   const node = findRenderedNode(name);
   if (!focused || !node) return 1;
   const distance = new THREE.Vector3(focused.x, focused.y, focused.z).distanceTo(new THREE.Vector3(node.x, node.y, node.z));
-  return THREE.MathUtils.clamp((1 - distance / 72) * 0.34, 0.015, 0.22);
+  const proximity = THREE.MathUtils.clamp(1 - distance / 135, 0, 1);
+  return THREE.MathUtils.lerp(0.035, 0.92, proximity ** 1.35);
 }
 
 function focusFadeForEdge(edge) {
   if (!brain.focusedNodeName) return 1;
-  const sourceFocused = edge.userData.sourceName === brain.focusedNodeName;
-  const targetFocused = edge.userData.targetName === brain.focusedNodeName;
   const sourceFade = focusFadeForNode(edge.userData.sourceName);
   const targetFade = focusFadeForNode(edge.userData.targetName);
-  if (sourceFocused || targetFocused) {
-    const otherFade = sourceFocused ? targetFade : sourceFade;
-    return THREE.MathUtils.clamp(otherFade * 0.72, 0.035, 0.18);
-  }
-  return Math.max(sourceFade, targetFade) * 0.28;
+  return THREE.MathUtils.clamp(Math.max(sourceFade, targetFade) * 0.9, 0.025, 0.9);
+}
+
+function focusCenterVector() {
+  const focused = brain.focusedNodeName ? findRenderedNode(brain.focusedNodeName) : null;
+  return focused ? new THREE.Vector3(focused.x, focused.y, focused.z) : new THREE.Vector3();
 }
 
 function hideNodeTooltip() {
@@ -1369,12 +1400,14 @@ function hideNodeTooltip() {
 
 function applyFocusFade(name) {
   brain.focusedNodeName = name;
+  const focusCenter = focusCenterVector();
+  const focusActive = brain.focusedNodeName ? 1 : 0;
   brain.nodeObjects.forEach((object) => {
     const nodeName = object.userData.eegNode?.name;
-    object.material.opacity = (object.userData.baseOpacity ?? 0.96) * focusFadeForNode(nodeName);
+    object.material.opacity = nodeName === brain.focusedNodeName ? 1 : (object.userData.baseOpacity ?? 0.96) * focusFadeForNode(nodeName);
   });
   brain.labels.forEach((label) => {
-    label.material.opacity = (label.userData.baseOpacity ?? 1) * focusFadeForNode(label.userData.eegNodeName);
+    label.material.opacity = label.userData.eegNodeName === brain.focusedNodeName ? 1 : (label.userData.baseOpacity ?? 1) * focusFadeForNode(label.userData.eegNodeName);
   });
   brain.nodeGlowObjects.forEach((glow) => {
     if (glow.userData.eegNodeName === brain.selectedGlowNode) {
@@ -1388,10 +1421,14 @@ function applyFocusFade(name) {
     }
   });
   brain.edgeObjects.forEach((edge) => {
-    edge.material.opacity = (edge.userData.baseOpacity ?? 0.42) * focusFadeForEdge(edge);
+    if (edge.material?.uniforms?.focusCenter) edge.material.uniforms.focusCenter.value.copy(focusCenter);
+    if (edge.material?.uniforms?.focusActive) edge.material.uniforms.focusActive.value = focusActive;
+    if (edge.material?.uniforms?.baseOpacity) edge.material.uniforms.baseOpacity.value = edge.userData.baseOpacity ?? 0.42;
   });
   brain.signalObjects.forEach((signal) => {
-    signal.userData.focusFade = focusFadeForEdge(signal);
+    if (signal.material?.uniforms?.focusCenter) signal.material.uniforms.focusCenter.value.copy(focusCenter);
+    if (signal.material?.uniforms?.focusActive) signal.material.uniforms.focusActive.value = focusActive;
+    signal.userData.focusFade = 1;
   });
   if (brain.canvas) brain.canvas.needsUpdate = true;
 }
