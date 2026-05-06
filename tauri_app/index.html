@@ -4,8 +4,87 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EEG 抑郁风险分析预览版</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-width: 1080px;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+      }
+
+      .startup-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: end center;
+        padding: 0 8vw 10vh;
+        background:
+          linear-gradient(180deg, rgba(0, 0, 0, 0.16) 0%, rgba(0, 0, 0, 0.42) 62%, rgba(0, 0, 0, 0.92) 100%),
+          url("/loading-bg.svg") center / cover no-repeat,
+          #000;
+        color: #fff;
+        transition: opacity 0.36s ease, visibility 0.36s ease;
+      }
+
+      .startup-loader.done {
+        opacity: 0;
+        visibility: hidden;
+      }
+
+      .startup-progress {
+        width: min(520px, 52vw);
+        min-width: 360px;
+        display: grid;
+        gap: 12px;
+      }
+
+      .startup-progress-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font: 700 13px/1.2 "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+        letter-spacing: 0;
+        color: rgba(255, 255, 255, 0.82);
+      }
+
+      .startup-track {
+        height: 8px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .startup-fill {
+        height: 100%;
+        width: 46%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, rgba(255, 255, 255, 0.34), #fff, rgba(255, 255, 255, 0.42));
+        animation: startup-load 1.25s ease-in-out infinite;
+      }
+
+      @keyframes startup-load {
+        0% {
+          transform: translateX(-115%);
+        }
+        100% {
+          transform: translateX(230%);
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="startupLoader" class="startup-loader">
+      <div class="startup-progress">
+        <div class="startup-progress-meta">
+          <span>加载 threeBrain 3D 模板</span>
+          <strong id="startupPercent">0%</strong>
+        </div>
+        <div class="startup-track"><div id="startupFill" class="startup-fill"></div></div>
+      </div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

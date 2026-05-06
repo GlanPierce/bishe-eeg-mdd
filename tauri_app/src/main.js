@@ -177,6 +177,9 @@ app.innerHTML = `
 `;
 
 const $ = (id) => document.getElementById(id);
+const startupLoader = $('startupLoader');
+const startupPercent = $('startupPercent');
+const startupFill = $('startupFill');
 
 const els = {
   appShell: $('appShell'),
@@ -212,11 +215,66 @@ let selectedModel = 'clean';
 let progressTimer = null;
 let consoleDrag = null;
 
+function setStartupProgress(value) {
+  const pct = Math.max(0, Math.min(100, Math.round(value)));
+  if (startupPercent) startupPercent.textContent = `${pct}%`;
+  if (startupFill) {
+    startupFill.style.animation = 'none';
+    startupFill.style.transform = 'none';
+    startupFill.style.width = `${pct}%`;
+  }
+}
+
+function hideStartupLoader() {
+  setStartupProgress(100);
+  window.setTimeout(() => {
+    startupLoader?.classList.add('done');
+    window.setTimeout(() => startupLoader?.remove(), 420);
+  }, 180);
+}
+
 const charts = {
   region: echarts.init($('regionChart')),
   asym: echarts.init($('asymChart')),
   temporal: echarts.init($('temporalChart'))
 };
+
+const chartPalette = {
+  positive: '#f1f5f9',
+  negative: '#7c8792',
+  left: '#c9d1d9',
+  right: '#ffffff',
+  grid: 'rgba(255, 255, 255, 0.08)',
+  axis: 'rgba(255, 255, 255, 0.36)',
+  text: 'rgba(244, 247, 248, 0.78)'
+};
+
+const baseChartStyle = {
+  backgroundColor: 'transparent',
+  textStyle: { color: chartPalette.text, fontFamily: '"Microsoft YaHei", "Segoe UI", Arial, sans-serif' },
+  tooltip: {
+    trigger: 'axis',
+    backgroundColor: 'rgba(8, 11, 12, 0.94)',
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    textStyle: { color: '#f4f7f8' },
+    axisPointer: { lineStyle: { color: 'rgba(255, 255, 255, 0.26)' } }
+  }
+};
+
+function valueColor(value) {
+  return Number(value) >= 0 ? chartPalette.positive : chartPalette.negative;
+}
+
+function chartAxis(type, data = null) {
+  return {
+    type,
+    data,
+    axisLine: { lineStyle: { color: chartPalette.axis } },
+    axisTick: { lineStyle: { color: chartPalette.axis } },
+    axisLabel: { color: chartPalette.text },
+    splitLine: { lineStyle: { color: chartPalette.grid } }
+  };
+}
 
 const brain = {
   nodes: [],
@@ -1555,6 +1613,7 @@ function arcballVector(event) {
 }
 
 async function initBrainScene() {
+  setStartupProgress(18);
   const tooltip = els.nodeTooltip;
   els.networkChart.innerHTML = '';
   els.networkChart.appendChild(tooltip);
@@ -1585,7 +1644,9 @@ async function initBrainScene() {
   if (brain.canvas.compass?.container) brain.canvas.compass.container.visible = false;
   brain.canvas.setBackground({ color: '#000000' });
   try {
+    setStartupProgress(42);
     await addBrainSurface();
+    setStartupProgress(72);
     setBrainCamera();
     const renderLoop = () => {
       updateBrainFocusAnimation();
@@ -1603,6 +1664,7 @@ async function initBrainScene() {
     brain.canvas.activated = true;
     setupBrainInteraction();
     drawBrainNetwork(createTemplateNodes(), defaultTemplateEdges);
+    setStartupProgress(94);
     pushConsole('threeBrain N27 pial template initialized.');
   } catch (error) {
     pushConsole(String(error), 'error');
@@ -1828,13 +1890,60 @@ function renderEdges(payload) {
   `).join('');
 }
 
+function renderUnifiedRegion(payload) {
+  const rows = [...payload.visualization.regions].sort((a, b) => a.contribution - b.contribution);
+  charts.region.setOption({
+    ...baseChartStyle,
+    grid: { left: 86, right: 28, top: 18, bottom: 28 },
+    xAxis: chartAxis('value'),
+    yAxis: chartAxis('category', rows.map((row) => row.name)),
+    series: [{
+      type: 'bar',
+      barWidth: 14,
+      data: rows.map((row) => ({ value: row.contribution, itemStyle: { color: valueColor(row.contribution), borderRadius: [0, 5, 5, 0] } })),
+      label: { show: true, position: 'right', color: '#f4f7f8', formatter: (item) => fmt(item.value, 3) }
+    }]
+  });
+}
+
+function renderUnifiedAsymmetry(payload) {
+  const rows = payload.visualization.asymmetry;
+  charts.asym.setOption({
+    ...baseChartStyle,
+    grid: { left: 70, right: 20, top: 24, bottom: 42 },
+    legend: { bottom: 0, data: ['左侧', '右侧'], textStyle: { color: chartPalette.text } },
+    xAxis: chartAxis('category', rows.map((row) => row.region)),
+    yAxis: chartAxis('value'),
+    series: [
+      { name: '左侧', type: 'bar', barWidth: 13, data: rows.map((row) => row.left), itemStyle: { color: chartPalette.left, borderRadius: [5, 5, 0, 0] } },
+      { name: '右侧', type: 'bar', barWidth: 13, data: rows.map((row) => row.right), itemStyle: { color: chartPalette.right, borderRadius: [5, 5, 0, 0] } }
+    ]
+  });
+}
+
+function renderUnifiedTemporal(payload) {
+  const rows = payload.visualization.temporalGroups;
+  charts.temporal.setOption({
+    ...baseChartStyle,
+    grid: { left: 58, right: 24, top: 18, bottom: 36 },
+    xAxis: chartAxis('category', rows.map((row) => row.name)),
+    yAxis: chartAxis('value'),
+    series: [{
+      type: 'bar',
+      barWidth: 18,
+      data: rows.map((row) => ({ value: row.contribution, itemStyle: { color: valueColor(row.contribution), borderRadius: [5, 5, 0, 0] } })),
+      label: { show: true, position: 'top', color: '#f4f7f8', formatter: (item) => fmt(item.value, 3) }
+    }]
+  });
+}
+
 function render(payload) {
   renderMeta(payload);
   renderRisk(payload);
   renderNetwork(payload);
-  renderRegion(payload);
-  renderAsymmetry(payload);
-  renderTemporal(payload);
+  renderUnifiedRegion(payload);
+  renderUnifiedAsymmetry(payload);
+  renderUnifiedTemporal(payload);
   renderEdges(payload);
   resizeCharts();
 }
@@ -2003,6 +2112,6 @@ els.runInference.addEventListener('click', async () => {
 
 window.addEventListener('resize', resizeCharts);
 
-initBrainScene();
+initBrainScene().finally(() => hideStartupLoader());
 updateModelUi();
 pushConsole('控制台初始化完成。按 ` 打开或关闭控制台。');
