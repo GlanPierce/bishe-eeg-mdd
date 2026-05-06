@@ -9,6 +9,12 @@ __pycache__/
 .venv/
 python311/
 .dgl/
+.cargo/
+.rustup/
+.rust-tmp/
+node_modules/
+tauri_app/dist/
+tauri_app/src-tauri/target/
 
 # Data and generated artifacts
 data/raw/
