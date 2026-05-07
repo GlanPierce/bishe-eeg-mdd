@@ -1,8 +1,23 @@
 use std::{
+    collections::HashMap,
     env,
+    fs,
     path::{Path, PathBuf},
     process::Command,
 };
+
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct AppModelEntry {
+    key: &'static str,
+    label: &'static str,
+    folder: &'static str,
+    path: String,
+    console_only: bool,
+    disabled: bool,
+    badge: Option<&'static str>,
+}
 
 fn find_repo_root() -> Result<PathBuf, String> {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -31,29 +46,101 @@ fn python_path(repo_root: &Path) -> PathBuf {
     }
 }
 
+fn model_folder_root(repo_root: &Path) -> PathBuf {
+    repo_root.join("outputs").join("app_models")
+}
+
+fn model_profiles() -> [(&'static str, &'static str, &'static str, bool, Option<&'static str>); 3] {
+    [
+        (
+            "clean",
+            "ExplicitRegionTemporalWeightedStarGNN",
+            "ExplicitRegionTemporalWeightedStarGNN",
+            false,
+            None,
+        ),
+        (
+            "targeted_repair",
+            "ExplicitRegionTemporalWeightedStarGNN + targeted artifact repair",
+            "ExplicitRegionTemporalWeightedStarGNN_targeted_artifact_repair",
+            false,
+            None,
+        ),
+        (
+            "taskonly61_multistate_arch",
+            "Multistate explicit region-temporal weighted-star model",
+            "Multistate_explicit_region_temporal_weighted_star_model",
+            true,
+            Some("测试用 / Console only"),
+        ),
+    ]
+}
+
+#[tauri::command]
+fn list_model_folder() -> Result<Vec<AppModelEntry>, String> {
+    let repo_root = find_repo_root()?;
+    let root = model_folder_root(&repo_root);
+    fs::create_dir_all(&root).map_err(|err| format!("Failed to create model folder: {err}"))?;
+    let models = model_profiles()
+        .into_iter()
+        .filter_map(|(key, label, folder, console_only, badge)| {
+            let path = root.join(folder).join("model.pkl");
+            path.exists().then(|| AppModelEntry {
+                key,
+                label,
+                folder,
+                path: path.to_string_lossy().to_string(),
+                console_only,
+                disabled: console_only,
+                badge,
+            })
+        })
+        .collect();
+    Ok(models)
+}
+
 #[tauri::command]
 fn run_inference(
     edf_path: String,
     model_profile: Option<String>,
     custom_model_path: Option<String>,
+    edf_states: Option<HashMap<String, String>>,
 ) -> Result<serde_json::Value, String> {
-    if edf_path.trim().is_empty() {
+    if edf_path.trim().is_empty() && edf_states.as_ref().map_or(true, HashMap::is_empty) {
         return Err("No EDF path provided.".to_string());
     }
 
     let repo_root = find_repo_root()?;
     let script = repo_root.join("src").join("app_backend").join("infer_edf.py");
+    let profile = model_profile.clone().unwrap_or_else(|| "clean".to_string());
+    let allowed = model_profiles()
+        .into_iter()
+        .any(|(key, _, folder, _, _)| key == profile && model_folder_root(&repo_root).join(folder).join("model.pkl").exists());
+    if custom_model_path.as_ref().map_or(true, |path| path.trim().is_empty()) && !allowed {
+        return Err(format!(
+            "Model artifact is not available in outputs/app_models for profile: {profile}"
+        ));
+    }
     let mut command = Command::new(python_path(&repo_root));
     command
         .arg(script)
         .arg("--edf")
         .arg(edf_path)
         .arg("--model-profile")
-        .arg(model_profile.unwrap_or_else(|| "clean".to_string()))
-        .arg("--trust-cache");
+        .arg(profile)
+        .arg("--require-artifact");
     if let Some(path) = custom_model_path {
         if !path.trim().is_empty() {
             command.arg("--custom-model-path").arg(path);
+        }
+    }
+    if let Some(states) = edf_states {
+        for state in ["TASK", "EC", "EO"] {
+            if let Some(path) = states.get(state) {
+                if !path.trim().is_empty() {
+                    command.arg("--edf-state").arg(format!("{state}={path}"));
+                }
+            }
         }
     }
     let output = command
@@ -89,11 +176,23 @@ fn run_inference(
     serde_json::from_str(last_line).map_err(|err| format!("Invalid inference JSON: {err}"))
 }
 
+#[tauri::command]
+fn open_model_folder() -> Result<String, String> {
+    let repo_root = find_repo_root()?;
+    let folder = model_folder_root(&repo_root);
+    fs::create_dir_all(&folder).map_err(|err| format!("Failed to create model folder: {err}"))?;
+    Command::new("explorer")
+        .arg(&folder)
+        .spawn()
+        .map_err(|err| format!("Failed to open model folder: {err}"))?;
+    Ok(folder.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![run_inference])
+        .invoke_handler(tauri::generate_handler![run_inference, open_model_folder, list_model_folder])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
 }

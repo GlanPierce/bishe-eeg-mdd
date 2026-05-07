@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "EEG-MDD-Tauri-Preview",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "identifier": "cn.edu.eeg.mdd-tauri-preview",
   "build": {
     "beforeDevCommand": "npm run web:dev",
@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "EEG MDD Risk Preview",
-        "width": 1320,
-        "height": 860,
-        "minWidth": 1080,
-        "minHeight": 720
+        "width": 1560,
+        "height": 940,
+        "minWidth": 1320,
+        "minHeight": 780
       }
     ],
     "security": {

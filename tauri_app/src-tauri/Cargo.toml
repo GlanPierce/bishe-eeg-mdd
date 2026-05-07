@@ -1,6 +1,6 @@
 [package]
 name = "eeg-mdd-tauri-preview"
-version = "0.0.1"
+version = "1.0.0"
 description = "Lightweight Tauri preview for EEG MDD risk inference."
 authors = ["Glan Pierce"]
 edition = "2021"
@@ -13,6 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "=2.6.0", features = [] }
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "=2.11.0", features = [] }
 tauri-plugin-dialog = "=2.7.1"

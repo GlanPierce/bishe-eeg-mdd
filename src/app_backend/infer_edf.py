@@ -40,6 +40,15 @@ from run_explicit_region_temporal_summary_node_gnn_5x10 import (
     node_feature_region_map,
     _norm_ch_name,
 )
+from run_multistate_explicit_region_temporal_node_gnn_5x10 import (
+    _extract_condition_features as _extract_multistate_condition_features,
+    build_group_aggregates as build_multistate_group_aggregates,
+    build_region_aggregates as build_multistate_region_aggregates,
+    build_solver as build_multistate_solver,
+    build_state_aggregates as build_multistate_state_aggregates,
+    build_state_region_aggregates as build_multistate_state_region_aggregates,
+    build_subject_multistate_table,
+)
 
 
 BAND_NAMES = ["delta", "theta", "alpha", "beta", "gamma"]
@@ -49,7 +58,9 @@ MODEL_PROFILES = {
         "name": "ExplicitRegionTemporalWeightedStarGNN",
         "display": "Clean 61-subject TASK benchmark",
         "source_result": "0.9143 clean 5 seeds x 10 folds",
-        "cache_path": Path("outputs/cache/app_reference_model_v1.pkl"),
+        "cache_path": Path("outputs/app_models/ExplicitRegionTemporalWeightedStarGNN/model.pkl"),
+        "legacy_cache_path": Path("outputs/cache/app_reference_model_v1.pkl"),
+        "input_scope": "TASK",
         "c": 1.0,
         "targeted": {},
         "note": "Default thesis-facing clean benchmark profile.",
@@ -58,7 +69,9 @@ MODEL_PROFILES = {
         "name": "ExplicitRegionTemporalWeightedStarGNN + targeted artifact repair",
         "display": "Benchmark-tuned artifact repair",
         "source_result": "0.9343 benchmark-tuned 5 seeds x 10 folds",
-        "cache_path": Path("outputs/cache/app_reference_model_targeted_repair_v1.pkl"),
+        "cache_path": Path("outputs/app_models/ExplicitRegionTemporalWeightedStarGNN_targeted_artifact_repair/model.pkl"),
+        "legacy_cache_path": Path("outputs/cache/app_reference_model_targeted_repair_v1.pkl"),
+        "input_scope": "TASK",
         "c": 0.25,
         "targeted": {
             "targeted_clean_bad_abs_threshold": 0.00025,
@@ -70,13 +83,15 @@ MODEL_PROFILES = {
         "note": "Higher-scoring benchmark-tuned profile; report separately from the clean result.",
     },
     "taskonly61_multistate_arch": {
-        "name": "Multistate architecture on TASK-only 61-subject features",
-        "display": "TASK-only multistate architecture reference",
-        "source_result": "TASK-only 61-subject multistate-architecture reference",
-        "cache_path": Path("outputs/cache/app_reference_model_taskonly61_multistate_arch_v1.pkl"),
+        "name": "Multistate explicit region-temporal weighted-star model",
+        "display": "Multistate TASK+EC+EO app model",
+        "source_result": "53 complete-state subjects, TASK+EC+EO graphvector benchmark",
+        "cache_path": Path("outputs/app_models/Multistate_explicit_region_temporal_weighted_star_model/model.pkl"),
+        "legacy_cache_path": Path("outputs/cache/app_reference_model_taskonly61_multistate_arch_v1.pkl"),
+        "input_scope": "TASK+EC+EO",
         "c": 1.0,
         "targeted": {},
-        "note": "Preview-compatible linear weighted-star refit for comparing the app feature pipeline.",
+        "note": "Requires one TASK, one EC, and one EO EDF from the same subject.",
     },
 }
 PAIR_BY_REGION = {
@@ -372,6 +387,15 @@ def _load_or_build_model(args: argparse.Namespace) -> AppModel:
         return model
 
     cache_path = _resolve(args.cache_path if args.cache_path is not None else profile["cache_path"])
+    legacy_cache_path = _resolve(profile["legacy_cache_path"]) if profile.get("legacy_cache_path") else None
+    if not args.require_artifact and not cache_path.exists() and legacy_cache_path is not None and legacy_cache_path.exists():
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_bytes(legacy_cache_path.read_bytes())
+    if args.require_artifact and not cache_path.exists():
+        raise FileNotFoundError(
+            f"App model artifact not found: {cache_path}. "
+            "Run src/app_backend/train_app_models.py before using the app."
+        )
     cache_key = {
         "schema": "app_reference_model_v1",
         "model_profile": str(args.model_profile),
@@ -392,10 +416,15 @@ def _load_or_build_model(args: argparse.Namespace) -> AppModel:
     if cache_path.exists() and not args.rebuild_cache:
         with cache_path.open("rb") as f:
             payload = pickle.load(f)
-        if args.trust_cache:
-            return payload["model"]
-        if payload.get("cache_key") == cache_key:
-            return payload["model"]
+        cached_model = payload.get("model") if isinstance(payload, dict) else payload
+        cached_key = payload.get("cache_key") if isinstance(payload, dict) else None
+        cached_profile = getattr(cached_model, "profile_key", None)
+        if args.require_artifact:
+            return cached_model
+        if args.trust_cache and (cached_key == cache_key or (cached_key is None and cached_profile == str(args.model_profile))):
+            return cached_model
+        if cached_key == cache_key:
+            return cached_model
 
     model = _build_reference_model(args)
     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -404,13 +433,145 @@ def _load_or_build_model(args: argparse.Namespace) -> AppModel:
     return model
 
 
+def _parse_edf_states(items: list[str] | None) -> dict[str, Path]:
+    out: dict[str, Path] = {}
+    for item in items or []:
+        if "=" not in item:
+            raise ValueError(f"Expected STATE=path for --edf-state, got: {item}")
+        state, raw_path = item.split("=", 1)
+        key = state.strip().upper()
+        if key not in {"TASK", "EC", "EO"}:
+            raise ValueError(f"Unsupported EDF state: {state}")
+        out[key] = _resolve(Path(raw_path.strip()))
+    return out
+
+
+def _infer_multistate(args: argparse.Namespace) -> dict[str, Any]:
+    profile = _profile(args)
+    artifact_path = _resolve(args.cache_path if args.cache_path is not None else profile["cache_path"])
+    legacy_artifact_path = _resolve(profile["legacy_cache_path"]) if profile.get("legacy_cache_path") else None
+    if not args.require_artifact and not artifact_path.exists() and legacy_artifact_path is not None and legacy_artifact_path.exists():
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_path.write_bytes(legacy_artifact_path.read_bytes())
+    if not artifact_path.exists():
+      raise FileNotFoundError(f"Multistate app model artifact not found: {artifact_path}")
+    with artifact_path.open("rb") as handle:
+        artifact = pickle.load(handle)
+    state_paths = _parse_edf_states(args.edf_state)
+    if not isinstance(artifact, dict) or artifact.get("model_type") != "multistate_app":
+        raise RuntimeError(
+            f"Artifact is not a multistate app model: {artifact_path}. "
+            "Run src/app_backend/train_app_models.py --profiles taskonly61_multistate_arch to rebuild it."
+        )
+
+    missing = [state for state in artifact["states"] if state not in state_paths]
+    if missing:
+        raise ValueError(f"Multistate model requires TASK, EC and EO EDF files; missing: {missing}")
+
+    items: list[dict[str, Any]] = []
+    for state in artifact["states"]:
+        feats = _extract_multistate_condition_features(
+            file_path=state_paths[state],
+            max_seconds=int(args.max_seconds),
+            window_seconds=float(args.window_seconds),
+            step_seconds=float(args.step_seconds),
+            max_windows=int(args.max_windows),
+            top_k_per_node=int(artifact.get("top_k_per_node", 4)),
+        )
+        items.append({"subject_id": "APP_SUBJECT", "label": 0, "label_name": "APP", "state": state, **feats})
+
+    _, _, base_x, feature_region_map, feature_group_ids, feature_state_ids, group_keys, state_keys = build_subject_multistate_table(
+        items=items,
+        states=list(artifact["states"]),
+        eligible_states=list(artifact["states"]),
+        include_pairwise_contrasts=bool(artifact.get("include_pairwise_contrasts", False)),
+    )
+    region_x = build_multistate_region_aggregates(base_x, feature_region_map)
+    state_region_x = build_multistate_state_region_aggregates(base_x, feature_region_map, feature_state_ids, n_states=len(state_keys))
+    group_x = build_multistate_group_aggregates(base_x, feature_group_ids, n_groups=len(group_keys))
+    state_x = build_multistate_state_aggregates(base_x, feature_state_ids, n_states=len(state_keys))
+    expanded_x = np.concatenate([base_x, region_x, state_region_x, group_x, state_x], axis=1).astype(np.float32)
+    if int(expanded_x.shape[1]) != int(artifact["n_features"]):
+        raise RuntimeError(f"Multistate feature mismatch. expected={artifact['n_features']}, got={expanded_x.shape[1]}")
+
+    z = artifact["scaler"].transform(expanded_x).astype(np.float32)
+    classes = list(getattr(artifact["clf"], "classes_", []))
+    if 1 not in classes:
+        raise RuntimeError(f"Model classes do not contain MDD label 1: {classes}")
+    mdd_class_index = int(classes.index(1))
+    prob_mdd = float(artifact["clf"].predict_proba(z)[0][mdd_class_index])
+    coef = artifact["clf"].coef_[0].astype(np.float32)
+    logit = float(z[0] @ coef + float(artifact["clf"].intercept_[0]))
+
+    task_path = state_paths.get("TASK") or next(iter(state_paths.values()))
+    cfg = GraphConfig(max_seconds=int(args.max_seconds))
+    data, sfreq, ch_names = read_eeg(task_path, cfg)
+    data, aligned_names, warnings, hidden_channels = _align_channels(data, ch_names)
+    hidden_indices = _hidden_channel_indices(aligned_names, hidden_channels)
+    static_x, matrices = _static_features_from_data(data, sfreq, hidden_indices=hidden_indices)
+    temporal_x, temporal_meta = _temporal_summary_from_data(
+        data, sfreq, float(args.window_seconds), float(args.step_seconds), int(args.max_windows), hidden_indices
+    )
+    visual = _visual_payload(
+        z=np.zeros(1377, dtype=np.float32),
+        coef=np.zeros(1377, dtype=np.float32),
+        slices={"feature": (0, 1364), "region": (1364, 1374), "temporal_group": (1374, 1377)},
+        matrices=matrices,
+        ch_names=aligned_names,
+        node_x=matrices["node_x"],
+        top_edges_n=int(args.top_edges),
+        hidden_channels=hidden_channels,
+    )
+    warnings.append("Multistate prediction used TASK+EC+EO files; the brain network visualization uses TASK connectivity as the display anchor.")
+    return {
+        "schema": "eeg_mdd_electron_inference_v1",
+        "model": {
+            "profile": "taskonly61_multistate_arch",
+            "display": profile["display"],
+            "name": profile["name"],
+            "sourceResult": profile["source_result"],
+            "productionFit": "fixed multistate app artifact loaded from disk",
+            "trainSubjectCount": artifact.get("train_subject_count"),
+            "trainLabelCounts": artifact.get("train_label_counts", {}),
+            "note": profile["note"],
+        },
+        "file": {
+            "path": " | ".join(f"{state}={state_paths[state]}" for state in artifact["states"]),
+            "name": "TASK + EC + EO",
+            "sfreq": float(sfreq),
+            "nChannels": int(data.shape[0]),
+            "modelChannels": int(data.shape[0]),
+            "filledTemplateChannels": sorted(hidden_channels),
+            "nSamples": int(data.shape[1]),
+            "durationSeconds": float(data.shape[1] / sfreq),
+            "warnings": warnings,
+        },
+        "prediction": {
+            "probMdd": prob_mdd,
+            "probNormal": float(1.0 - prob_mdd),
+            "modelClasses": [int(item) for item in classes],
+            "mddClassIndex": mdd_class_index,
+            "risk": _risk_level(prob_mdd),
+            "logit": logit,
+            "thresholds": {"normalMax": 0.45, "mildMax": 0.70},
+            "note": "Multistate risk uses TASK+EC+EO features from the fixed app artifact.",
+        },
+        "features": {
+            "staticDim": int(static_x.shape[0]),
+            "temporalDim": int(temporal_x.shape[0]),
+            "expandedDim": int(expanded_x.shape[1]),
+            "temporal": temporal_meta,
+        },
+        "visualization": visual,
+    }
+
+
 def _risk_level(prob_mdd: float) -> dict[str, Any]:
     if prob_mdd < 0.45:
         return {"code": "normal", "label": "正常", "severity": 0}
     if prob_mdd < 0.70:
         return {"code": "mild", "label": "轻度", "severity": 1}
     return {"code": "severe", "label": "重度", "severity": 2}
-
 
 def _region_name_for_channel(name: str) -> str:
     regs = [REGION_KEYS[idx] for idx in channel_regions(name)]
@@ -437,6 +598,7 @@ def _top_edges(
     matrix: np.ndarray,
     ch_names: list[str],
     channel_influence: np.ndarray,
+    channel_contribution: np.ndarray,
     top_n: int,
     hidden_channels: set[str] | None = None,
 ) -> list[dict[str, Any]]:
@@ -452,6 +614,7 @@ def _top_edges(
     tri_i = tri_i[visible_mask]
     tri_j = tri_j[visible_mask]
     vals = matrix[tri_i, tri_j]
+    edge_contrib = np.abs(vals) * (channel_contribution[tri_i] + channel_contribution[tri_j]) / 2.0
     score = np.abs(vals) * (1.0 + (channel_influence[tri_i] + channel_influence[tri_j]) / 2.0)
     order = np.argsort(score)[::-1][: int(top_n)]
     edges: list[dict[str, Any]] = []
@@ -466,6 +629,7 @@ def _top_edges(
                 "value": float(vals[idx]),
                 "strength": float(abs(vals[idx])),
                 "score": float(score[idx]),
+                "contribution": float(edge_contrib[idx]),
             }
         )
     return edges
@@ -487,6 +651,7 @@ def _visual_payload(
 
     feature_contrib = z[feature_start:feature_stop] * coef[feature_start:feature_stop]
     node_band_contrib = feature_contrib[: len(ch_names) * len(BAND_NAMES)].reshape(len(ch_names), len(BAND_NAMES))
+    channel_contribution = np.sum(node_band_contrib, axis=1)
     channel_influence = np.sum(np.abs(node_band_contrib), axis=1)
     max_influence = float(np.max(channel_influence)) if np.max(channel_influence) > 0 else 1.0
 
@@ -546,13 +711,14 @@ def _visual_payload(
                 "y": y,
                 "symbolSize": 18 + 34 * float(channel_influence[idx] / max_influence),
                 "influence": float(channel_influence[idx]),
+                "contribution": float(channel_contribution[idx]),
                 "bandPower": {band: float(node_x[idx, band_idx]) for band_idx, band in enumerate(BAND_NAMES)},
                 "bandContribution": {band: float(node_band_contrib[idx, band_idx]) for band_idx, band in enumerate(BAND_NAMES)},
             }
         )
 
-    pcc_edges = _top_edges(matrices["pcc"], ch_names, channel_influence, top_edges_n, hidden)
-    alpha_edges = _top_edges(matrices["alpha"], ch_names, channel_influence, max(6, top_edges_n // 2), hidden)
+    pcc_edges = _top_edges(matrices["pcc"], ch_names, channel_influence, channel_contribution, top_edges_n, hidden)
+    alpha_edges = _top_edges(matrices["alpha"], ch_names, channel_influence, channel_contribution, max(6, top_edges_n // 2), hidden)
 
     asymmetry = []
     norm_to_idx = {_norm_ch_name(name): idx for idx, name in enumerate(ch_names)}
@@ -588,6 +754,9 @@ def _visual_payload(
 
 
 def infer(args: argparse.Namespace) -> dict[str, Any]:
+    if args.model_profile == "taskonly61_multistate_arch" and args.edf_state:
+        return _infer_multistate(args)
+
     edf_path = _resolve(args.edf)
     if not edf_path.exists():
         raise FileNotFoundError(f"EDF file not found: {edf_path}")
@@ -597,6 +766,11 @@ def infer(args: argparse.Namespace) -> dict[str, Any]:
     data, sfreq, ch_names = read_eeg(edf_path, cfg)
     raw_n_channels = int(data.shape[0])
     data, aligned_names, warnings, hidden_channels = _align_channels(data, ch_names)
+    if "TASK" not in edf_path.name.upper() and str(_profile(args).get("input_scope", "")).upper() == "TASK":
+        warnings.append(
+            "The selected app model is trained for TASK EDF files according to the graphvector benchmark README. "
+            f"The imported file is {edf_path.name}; EO/EC resting-state files can produce low MDD probabilities even for MDD subjects."
+        )
     hidden_indices = _hidden_channel_indices(aligned_names, hidden_channels)
     static_x, matrices = _static_features_from_data(data, sfreq, hidden_indices=hidden_indices)
     temporal_x, temporal_meta = _temporal_summary_from_data(
@@ -617,7 +791,12 @@ def infer(args: argparse.Namespace) -> dict[str, Any]:
         raise RuntimeError(f"Feature slice mismatch. expected={model.slices}, got={slices}")
 
     z = model.scaler.transform(expanded_x).astype(np.float32)
-    prob_mdd = float(model.clf.predict_proba(z)[0, 1])
+    classes = list(getattr(model.clf, "classes_", []))
+    if 1 not in classes:
+        raise RuntimeError(f"Model classes do not contain MDD label 1: {classes}")
+    mdd_class_index = int(classes.index(1))
+    probabilities = model.clf.predict_proba(z)[0]
+    prob_mdd = float(probabilities[mdd_class_index])
     coef = model.clf.coef_[0].astype(np.float32)
     intercept = float(model.clf.intercept_[0])
     logit = float(z[0] @ coef + intercept)
@@ -658,6 +837,8 @@ def infer(args: argparse.Namespace) -> dict[str, Any]:
         "prediction": {
             "probMdd": prob_mdd,
             "probNormal": float(1.0 - prob_mdd),
+            "modelClasses": [int(item) for item in classes],
+            "mddClassIndex": mdd_class_index,
             "risk": _risk_level(prob_mdd),
             "logit": logit,
             "thresholds": {"normalMax": 0.45, "mildMax": 0.70},
@@ -675,7 +856,8 @@ def infer(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Infer MDD risk from one EDF file and emit JSON for the Electron app.")
-    p.add_argument("--edf", type=Path, required=True)
+    p.add_argument("--edf", type=Path, default=Path(""))
+    p.add_argument("--edf-state", action="append", default=[])
     p.add_argument("--pcc-manifest", type=Path, default=Path("data/processed/graphs_pcc_topk_task/manifest.csv"))
     p.add_argument("--theta-manifest", type=Path, default=Path("data/processed/graphs_plv_theta_topk_task/manifest.csv"))
     p.add_argument("--alpha-manifest", type=Path, default=Path("data/processed/graphs_plv_alpha_topk_task/manifest.csv"))
@@ -693,6 +875,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--top-edges", type=int, default=28)
     p.add_argument("--rebuild-cache", action="store_true")
     p.add_argument("--trust-cache", action="store_true")
+    p.add_argument("--require-artifact", action="store_true")
     return p.parse_args()
 
 
