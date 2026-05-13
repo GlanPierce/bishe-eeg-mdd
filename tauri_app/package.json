@@ -1,0 +1,28 @@
+{
+  "name": "eeg-mdd-tauri-preview",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Lightweight Tauri preview for EEG MDD risk inference.",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "web:dev": "vite --host 127.0.0.1",
+    "web:build": "vite build",
+    "web:preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@rave-ieeg/three-brain": "^1.2.0",
+    "@tauri-apps/api": "2.11.0",
+    "@tauri-apps/plugin-dialog": "2.7.1",
+    "3d-force-graph": "^1.80.0",
+    "echarts": "5.6.0",
+    "plotly.js-dist-min": "^3.5.1",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.0",
+    "puppeteer-core": "^24.42.0",
+    "vite": "7.1.12"
+  }
+}

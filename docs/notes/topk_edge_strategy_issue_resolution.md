@@ -82,6 +82,6 @@
 3. 增加重复实验（不同随机种子）评估稳定性。
 
 ## 关联文档
-- `docs/benchmark_summary.md`：总表与横向对比
-- `docs/plv_band_experiment_notes.md`：PLV 相关问题记录
+- `docs/benchmarks/benchmark_summary.md`：总表与横向对比
+- `docs/notes/plv_band_experiment_notes.md`：PLV 相关问题记录
 

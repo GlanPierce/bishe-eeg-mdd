@@ -1,0 +1,110 @@
+{
+  "schema_version": "eeg_mdd_static_feature_node_gnn_5x10_summary_v1",
+  "experiment_name": "static_feature_weightedstar_5x10_thracc_widethr",
+  "created_at_utc": "2026-04-23T12:58:50Z",
+  "model": "FeatureNodeGNN",
+  "params": {
+    "folds": 10,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46
+    ],
+    "epochs": 1000,
+    "batch_size": 16,
+    "lr": 0.05,
+    "weight_decay": 0.1,
+    "hidden_dim": 64,
+    "node_embed_dim": 32,
+    "dropout": 0.25,
+    "conv_type": "weighted_star",
+    "heads": 2,
+    "patience": 120,
+    "min_epochs": 120,
+    "selection_metric": "threshold_accuracy",
+    "thr_low": 0.05,
+    "thr_high": 0.95,
+    "thr_step": 0.01,
+    "val_size": 0.2,
+    "fold_ids": []
+  },
+  "feature_shape": {
+    "n_subjects": 61,
+    "n_features": 1034
+  },
+  "n_runs": 5,
+  "runs": [
+    {
+      "seed": 42,
+      "path": "outputs\\metrics\\runs\\static_feature_weightedstar_5x10_thracc_widethr\\static_feature_node_gnn_seed42_cv10.json",
+      "accuracy_mean": 0.9166666666666667,
+      "accuracy_std": 0.08333333333333331,
+      "balanced_accuracy_mean": 0.9083333333333332,
+      "balanced_accuracy_std": 0.09464847243000458,
+      "f1_mean": 0.9203174603174602,
+      "f1_std": 0.08346791853183042,
+      "roc_auc_mean": 0.9305555555555556,
+      "roc_auc_std": 0.09065093817822621
+    },
+    {
+      "seed": 43,
+      "path": "outputs\\metrics\\runs\\static_feature_weightedstar_5x10_thracc_widethr\\static_feature_node_gnn_seed43_cv10.json",
+      "accuracy_mean": 0.8833333333333334,
+      "accuracy_std": 0.15,
+      "balanced_accuracy_mean": 0.8833333333333332,
+      "balanced_accuracy_std": 0.15000000000000002,
+      "f1_mean": 0.8828571428571429,
+      "f1_std": 0.17447296732310888,
+      "roc_auc_mean": 0.9222222222222223,
+      "roc_auc_std": 0.09999999999999998
+    },
+    {
+      "seed": 44,
+      "path": "outputs\\metrics\\runs\\static_feature_weightedstar_5x10_thracc_widethr\\static_feature_node_gnn_seed44_cv10.json",
+      "accuracy_mean": 0.9023809523809525,
+      "accuracy_std": 0.08000141722100686,
+      "balanced_accuracy_mean": 0.8958333333333333,
+      "balanced_accuracy_std": 0.08984941105353261,
+      "f1_mean": 0.914920634920635,
+      "f1_std": 0.07316478948068592,
+      "roc_auc_mean": 0.9833333333333334,
+      "roc_auc_std": 0.04999999999999999
+    },
+    {
+      "seed": 45,
+      "path": "outputs\\metrics\\runs\\static_feature_weightedstar_5x10_thracc_widethr\\static_feature_node_gnn_seed45_cv10.json",
+      "accuracy_mean": 0.9,
+      "accuracy_std": 0.13333333333333336,
+      "balanced_accuracy_mean": 0.8958333333333333,
+      "balanced_accuracy_std": 0.14099103596407192,
+      "f1_mean": 0.9157142857142858,
+      "f1_std": 0.10694267012693084,
+      "roc_auc_mean": 0.9319444444444445,
+      "roc_auc_std": 0.10252408629978095
+    },
+    {
+      "seed": 46,
+      "path": "outputs\\metrics\\runs\\static_feature_weightedstar_5x10_thracc_widethr\\static_feature_node_gnn_seed46_cv10.json",
+      "accuracy_mean": 0.9023809523809524,
+      "accuracy_std": 0.10934250003052413,
+      "balanced_accuracy_mean": 0.8916666666666666,
+      "balanced_accuracy_std": 0.11814539065631523,
+      "f1_mean": 0.8992063492063492,
+      "f1_std": 0.14625802000306834,
+      "roc_auc_mean": 0.9597222222222221,
+      "roc_auc_std": 0.06286927943197929
+    }
+  ],
+  "summary_over_runs": {
+    "accuracy_mean_of_means": 0.900952380952381,
+    "accuracy_std_of_means": 0.010605265453009565,
+    "balanced_accuracy_mean_of_means": 0.8949999999999999,
+    "balanced_accuracy_std_of_means": 0.008079466429027219,
+    "f1_mean_of_means": 0.9066031746031747,
+    "f1_std_of_means": 0.013848185253666037,
+    "roc_auc_mean_of_means": 0.9455555555555556,
+    "roc_auc_std_of_means": 0.022726907965647507
+  }
+}

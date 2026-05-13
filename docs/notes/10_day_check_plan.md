@@ -2,7 +2,7 @@
 
 ## 当前基线（2026-04-17）
 - 课题方向：EEG 抑郁识别，核心路线为 EEG 预处理 + 脑网络构建 + GNN 建模 + 可视化输出。
-- 已有资产：开题报告、中期报告、`eeg666.ipynb`（含 MNE 读取 EDF、滤波、连接矩阵、PSD 分析）。
+- 已有资产：开题报告、中期报告、`notebooks/eeg666.ipynb`（含 MNE 读取 EDF、滤波、连接矩阵、PSD 分析）。
 - 已部署环境：项目本地 `.venv` + PyTorch + Torch Geometric + MNE 等核心依赖。
 
 ## 检查目标定义（2026-04-27 之前）
@@ -12,7 +12,7 @@
 
 ## 每日推进路径
 1. 2026-04-18：数据路径本地化
-- 把 `eeg666.ipynb` 中 `/kaggle/input/...` 替换为本地数据目录参数。
+- 把 `notebooks/eeg666.ipynb` 中 `/kaggle/input/...` 替换为本地数据目录参数。
 - 约定目录：`data/raw`、`data/processed`、`outputs/figures`、`outputs/metrics`。
 
 2. 2026-04-19：预处理脚本化
@@ -53,7 +53,7 @@
 
 ## 每次检查前固定命令
 ```powershell
-.\.venv\Scripts\python.exe .\env_check.py
+.\.venv\Scripts\python.exe .\tools\env_check.py
 .\.venv\Scripts\python.exe -m jupyter lab --notebook-dir .
 ```
 
