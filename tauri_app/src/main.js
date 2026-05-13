@@ -1,7 +1,7 @@
 import './styles.css';
 import { mountShell, queryElements } from './ui/shell.js';
 import { createStartupLoader } from './ui/startup.js';
-import { createCharts, baseChartStyle, chartAxis, chartPalette, valueColor } from './charts/charts.js';
+import { createCharts, baseChartStyle, chartAxis, chartPalette, valueColor, contributionColor } from './charts/charts.js';
 import { createConsole } from './console/console.js';
 import { BrainScene } from './brain/index.js';
 import { fmt, signedFmt } from './utils/format.js';
@@ -21,7 +21,7 @@ const charts = createCharts(els);
 const appConsole = createConsole(els);
 const brainScene = new BrainScene({ els, logger: appConsole, startup });
 
-const tabOrder = ['history', 'network', 'contrib', 'edges'];
+const tabOrder = ['history', 'network', 'signals', 'contrib', 'edges'];
 const validTabs = [...tabOrder];
 const multistateModelKey = 'taskonly61_multistate_arch';
 const stateOrder = ['TASK', 'EC', 'EO'];
@@ -221,6 +221,13 @@ function historyTitle(entry) {
   return fileNameWithoutExtension(entry.fileName || entry.payload?.file?.name || 'EDF result');
 }
 
+function channelContributionColors(payload, channelNames) {
+  const nodes = payload.visualization.graph?.nodes || [];
+  const byName = new Map(nodes.map((node) => [String(node.name), Number(node.contribution || node.value || 0)]));
+  const maxAbs = Math.max(...Array.from(byName.values(), (value) => Math.abs(value || 0)), 0);
+  return channelNames.map((name) => contributionColor(byName.get(String(name)), maxAbs));
+}
+
 function captureDefaultCanvasThumbnail() {
   const canvas = brainScene.brain.canvas;
   const rendererCanvas = canvas?.main_renderer?.domElement;
@@ -325,6 +332,7 @@ function restoreHistory(id) {
   selectedEdfStates = { ...(entry.edfStates || {}) };
   updateModelUi();
   render(entry.payload);
+  switchTab('network');
   appConsole.log(`History restored: ${historyTitle(entry)}`);
 }
 
@@ -580,10 +588,131 @@ function renderUnifiedAsymmetryFixed(payload) {
   });
 }
 
+function renderSignalWaveform(payload) {
+  const waveform = payload.visualization.signals?.waveform;
+  const channels = waveform?.channels || [];
+  const colors = channelContributionColors(payload, channels.map((channel) => channel.name));
+  charts.waveform.setOption({
+    ...baseChartStyle,
+    color: colors,
+    grid: { left: 64, right: 28, top: 42, bottom: 44 },
+    legend: {
+      top: 4,
+      type: 'scroll',
+      textStyle: { color: chartPalette.text },
+      inactiveColor: '#4c545b'
+    },
+    tooltip: {
+      ...baseChartStyle.tooltip,
+      trigger: 'axis',
+      valueFormatter: (value) => `${fmt(value, 2)} ${waveform?.unit || 'uV'}`
+    },
+    xAxis: { ...chartAxis('value'), name: 's', nameTextStyle: { color: chartPalette.text } },
+    yAxis: { ...chartAxis('value'), scale: true, name: waveform?.unit || 'uV', nameTextStyle: { color: chartPalette.text } },
+    series: channels.map((channel, index) => ({
+      name: channel.name,
+      type: 'line',
+      showSymbol: false,
+      smooth: false,
+      lineStyle: { width: 1.2, color: colors[index] },
+      data: channel.data
+    }))
+  });
+}
+
+function renderSignalPsd(payload) {
+  const psd = payload.visualization.signals?.psd;
+  const channels = psd?.channels || [];
+  const colors = channelContributionColors(payload, channels.map((channel) => channel.name));
+  charts.psd.setOption({
+    ...baseChartStyle,
+    color: colors,
+    grid: { left: 64, right: 24, top: 42, bottom: 44 },
+    legend: {
+      top: 4,
+      type: 'scroll',
+      textStyle: { color: chartPalette.text },
+      inactiveColor: '#4c545b'
+    },
+    tooltip: {
+      ...baseChartStyle.tooltip,
+      trigger: 'axis',
+      valueFormatter: (value) => `${fmt(value, 2)} ${psd?.unit || 'dB/Hz'}`
+    },
+    xAxis: { ...chartAxis('value'), name: 'Hz', nameTextStyle: { color: chartPalette.text }, min: 0.5, max: 45 },
+    yAxis: { ...chartAxis('value'), scale: true, name: psd?.unit || 'dB/Hz', nameTextStyle: { color: chartPalette.text } },
+    series: channels.map((channel, index) => ({
+      name: channel.name,
+      type: 'line',
+      showSymbol: false,
+      smooth: true,
+      lineStyle: { width: 1.2, color: colors[index] },
+      data: channel.data
+    }))
+  });
+}
+
+function renderSignalPccHeatmap(payload) {
+  const heatmap = payload.visualization.signals?.pccHeatmap;
+  const channels = heatmap?.channels || [];
+  charts.pccHeatmap.setOption({
+    ...baseChartStyle,
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: 'rgba(8, 11, 12, 0.94)',
+      borderColor: 'rgba(255, 255, 255, 0.16)',
+      textStyle: { color: '#f4f7f8' },
+      formatter: (item) => {
+        const [x, y, value] = item.data;
+        return `${channels[y]} - ${channels[x]}<br/>PCC ${signedFmt(value, 3)}`;
+      }
+    },
+    grid: { left: 62, right: 18, top: 24, bottom: 78 },
+    xAxis: {
+      type: 'category',
+      data: channels,
+      splitArea: { show: true },
+      axisLabel: { color: chartPalette.text, interval: 0, rotate: 45 },
+      axisLine: { lineStyle: { color: chartPalette.axis } },
+      axisTick: { lineStyle: { color: chartPalette.axis } }
+    },
+    yAxis: {
+      type: 'category',
+      data: channels,
+      splitArea: { show: true },
+      axisLabel: { color: chartPalette.text },
+      axisLine: { lineStyle: { color: chartPalette.axis } },
+      axisTick: { lineStyle: { color: chartPalette.axis } }
+    },
+    visualMap: {
+      min: heatmap?.min ?? -1,
+      max: heatmap?.max ?? 1,
+      calculable: false,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 12,
+      textStyle: { color: chartPalette.text },
+      inRange: { color: [chartPalette.negative, chartPalette.neutral, chartPalette.positive] }
+    },
+    series: [{
+      type: 'heatmap',
+      data: heatmap?.data || [],
+      emphasis: { itemStyle: { borderColor: '#ffffff', borderWidth: 1 } }
+    }]
+  });
+}
+
+function renderSignals(payload) {
+  renderSignalWaveform(payload);
+  renderSignalPsd(payload);
+  renderSignalPccHeatmap(payload);
+}
+
 function render(payload) {
   renderMeta(payload);
   renderRisk(payload);
   brainScene.renderNetwork(payload);
+  renderSignals(payload);
   renderUnifiedRegion(payload);
   renderUnifiedAsymmetryFixed(payload);
   renderUnifiedTemporal(payload);
@@ -857,7 +986,7 @@ function bindEvents() {
       const tab = button.dataset.tab;
       const nextTab = tab === 'history' && activeTab === 'history'
         ? lastNonHistoryTab
-        : (tab === 'contrib' || tab === 'edges') && activeTab === tab
+        : (tab === 'signals' || tab === 'contrib' || tab === 'edges') && activeTab === tab
           ? 'network'
           : tab;
       switchTab(nextTab);

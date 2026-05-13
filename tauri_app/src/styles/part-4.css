@@ -371,6 +371,27 @@ button,
   opacity: 0;
 }
 
+#tab-signals .content-page {
+  overflow: hidden;
+}
+
+#tab-signals .signal-grid {
+  height: calc(100vh - 174px);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+#tab-signals .panel {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#tab-signals .signal-chart {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
 .tab-page.active .content-page {
   animation: page-slide-in 0.38s cubic-bezier(0.2, 0.76, 0.28, 1) forwards;
 }
@@ -635,21 +656,25 @@ button,
   z-index: 0;
 }
 
+#tab-signals,
 #tab-contrib,
 #tab-edges,
 #tab-history {
   z-index: 3;
 }
 
+#tab-signals.active,
 #tab-contrib.active,
 #tab-edges.active,
 #tab-history.active,
+#tab-signals.leaving,
 #tab-contrib.leaving,
 #tab-edges.leaving,
 #tab-history.leaving {
   opacity: 1;
 }
 
+#tab-signals.active,
 #tab-contrib.active,
 #tab-edges.active,
 #tab-history.active {

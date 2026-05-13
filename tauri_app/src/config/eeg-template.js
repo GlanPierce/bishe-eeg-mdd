@@ -1,12 +1,12 @@
 export const modelOptions = [
-  { key: 'clean', label: 'ExplicitRegionTemporalWeightedStarGNN' },
-  { key: 'targeted_repair', label: 'ExplicitRegionTemporalWeightedStarGNN + targeted artifact repair' },
+  { key: 'clean', label: 'ExplicitRegionTemporalWeightedStarGNN（61人TASK主基准）' },
+  { key: 'targeted_repair', label: 'ExplicitRegionTemporalWeightedStarGNN（定向伪迹修复变体）' },
   {
     key: 'taskonly61_multistate_arch',
-    label: 'Multistate explicit region-temporal weighted-star model',
+    label: 'Multistate explicit region-temporal weighted-star model（TASK+EC+EO）',
     disabled: true,
     consoleOnly: true,
-    badge: '测试用 / Console only'
+    badge: ''
   },
   { key: 'gcn_unavailable', label: 'DynamicsGraphConvGNN GCN', disabled: true },
   { key: 'custom', label: '+ 导入模型' }
@@ -84,7 +84,7 @@ export function createTemplateNodes() {
       ...pos,
       influence: 0,
       size: 7,
-      color: meta.hemisphere === 'left' ? '#2563eb' : meta.hemisphere === 'right' ? '#dc2626' : '#64748b'
+      color: '#f7f7f2'
     };
   });
 }

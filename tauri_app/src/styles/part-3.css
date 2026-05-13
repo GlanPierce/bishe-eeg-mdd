@@ -23,6 +23,16 @@
   gap: 16px;
 }
 
+.signal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.signal-panel-wide {
+  grid-column: 1 / -1;
+}
+
 .panel,
 .table-panel {
   background: linear-gradient(180deg, rgba(12, 16, 18, 0.98), rgba(7, 10, 11, 0.98));
@@ -55,6 +65,10 @@
   width: 100%;
   height: 292px;
   padding: 6px 8px 10px;
+}
+
+.signal-chart {
+  height: 340px;
 }
 
 .brain-scene {
@@ -311,6 +325,10 @@ td:nth-child(4) {
   }
 
   .contrib-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .signal-grid {
     grid-template-columns: 1fr;
   }
 

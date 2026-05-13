@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy.signal import welch
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
@@ -19,7 +20,7 @@ ROOT_DIR = SRC_DIR.parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from build_graphs import GraphConfig, _pcc_matrix, _phase_input_data, _plv_matrix, extract_node_features, read_eeg
+from build_graphs import BANDS, GraphConfig, _pcc_matrix, _phase_input_data, _plv_matrix, extract_node_features, read_eeg
 from feature_model_utils import (
     build_clean_window_static_graph_feature_table,
     _summarize_window_feature_stack,
@@ -56,14 +57,14 @@ OPTIONAL_PAD_CHANNELS = {"23A-23R", "24A-24R"}
 MODEL_PROFILES = {
     "clean": {
         "name": "ExplicitRegionTemporalWeightedStarGNN",
-        "display": "Clean 61-subject TASK benchmark",
-        "source_result": "0.9143 clean 5 seeds x 10 folds",
+        "display": "61-subject TASK reference benchmark",
+        "source_result": "0.9143, 5 seeds x 10 folds on the 61-subject TASK benchmark",
         "cache_path": Path("outputs/app_models/ExplicitRegionTemporalWeightedStarGNN/model.pkl"),
         "legacy_cache_path": Path("outputs/cache/app_reference_model_v1.pkl"),
         "input_scope": "TASK",
         "c": 1.0,
         "targeted": {},
-        "note": "Default thesis-facing clean benchmark profile.",
+        "note": "Default thesis-facing TASK benchmark profile.",
     },
     "targeted_repair": {
         "name": "ExplicitRegionTemporalWeightedStarGNN + targeted artifact repair",
@@ -112,8 +113,8 @@ class AppModel:
     train_subject_count: int
     train_label_counts: dict[str, int]
     profile_key: str = "clean"
-    profile_display: str = "Clean 61-subject TASK benchmark"
-    source_result: str = "0.9143 clean 5 seeds x 10 folds"
+    profile_display: str = "61-subject TASK reference benchmark"
+    source_result: str = "0.9143, 5 seeds x 10 folds on the 61-subject TASK benchmark"
     note: str = ""
 
 
@@ -267,6 +268,93 @@ def _temporal_summary_from_data(
         "window_seconds": float(window_seconds),
         "step_seconds": float(step_seconds),
         "max_windows": int(max_windows),
+    }
+
+
+def _visible_channel_indices(
+    ch_names: list[str],
+    hidden_channels: set[str] | None = None,
+    limit: int | None = None,
+) -> list[int]:
+    hidden_norm = {_norm_ch_name(name) for name in (hidden_channels or set())}
+    indices = [idx for idx, name in enumerate(ch_names) if _norm_ch_name(name) not in hidden_norm]
+    return indices[:limit] if limit is not None else indices
+
+
+def _signal_visual_payload(
+    data: np.ndarray,
+    sfreq: float,
+    ch_names: list[str],
+    pcc: np.ndarray,
+    hidden_channels: set[str] | None = None,
+) -> dict[str, Any]:
+    """Build compact signal-level charts for the Tauri app."""
+
+    waveform_indices = _visible_channel_indices(ch_names, hidden_channels, limit=8)
+    heatmap_indices = _visible_channel_indices(ch_names, hidden_channels)
+
+    preview_seconds = min(8.0, float(data.shape[1] / sfreq) if sfreq else 0.0)
+    stop = max(1, min(data.shape[1], int(round(preview_seconds * sfreq))))
+    max_wave_points = 520
+    wave_step = max(1, int(np.ceil(stop / max_wave_points)))
+    sample_indices = np.arange(0, stop, wave_step, dtype=np.int64)
+    time_values = (sample_indices.astype(np.float64) / float(sfreq)).round(3)
+
+    waveform = {
+        "unit": "uV",
+        "durationSeconds": float(preview_seconds),
+        "sampleStep": int(wave_step),
+        "channels": [
+            {
+                "name": _channel_short(ch_names[idx]),
+                "data": [
+                    [float(t), float(v)]
+                    for t, v in zip(time_values, (data[idx, sample_indices].astype(np.float64) * 1e6).round(3))
+                ],
+            }
+            for idx in waveform_indices
+        ],
+    }
+
+    psd_channels = []
+    if waveform_indices and data.shape[1] >= 8:
+        nperseg = min(1024, data.shape[1])
+        freqs, psd = welch(data[waveform_indices], fs=float(sfreq), nperseg=nperseg, axis=1)
+        mask = (freqs >= 0.5) & (freqs <= 45.0)
+        freq_values = freqs[mask]
+        psd_values = psd[:, mask]
+        freq_step = max(1, int(np.ceil(freq_values.shape[0] / 260)))
+        freq_values = freq_values[::freq_step].round(2)
+        psd_values = (10.0 * np.log10(psd_values[:, ::freq_step] + 1e-24)).round(3)
+        for row, idx in enumerate(waveform_indices):
+            psd_channels.append(
+                {
+                    "name": _channel_short(ch_names[idx]),
+                    "data": [[float(f), float(v)] for f, v in zip(freq_values, psd_values[row])],
+                }
+            )
+
+    heatmap_names = [_channel_short(ch_names[idx]) for idx in heatmap_indices]
+    clean_pcc = np.nan_to_num(pcc.astype(np.float64), nan=0.0, posinf=0.0, neginf=0.0)
+    heatmap = [
+        [col_pos, row_pos, float(round(clean_pcc[row_idx, col_idx], 4))]
+        for row_pos, row_idx in enumerate(heatmap_indices)
+        for col_pos, col_idx in enumerate(heatmap_indices)
+    ]
+
+    return {
+        "waveform": waveform,
+        "psd": {
+            "unit": "dB/Hz",
+            "bands": {name: [float(lo), float(hi)] for name, (lo, hi) in BANDS.items()},
+            "channels": psd_channels,
+        },
+        "pccHeatmap": {
+            "channels": heatmap_names,
+            "data": heatmap,
+            "min": -1.0,
+            "max": 1.0,
+        },
     }
 
 
@@ -522,6 +610,7 @@ def _infer_multistate(args: argparse.Namespace) -> dict[str, Any]:
         top_edges_n=int(args.top_edges),
         hidden_channels=hidden_channels,
     )
+    visual["signals"] = _signal_visual_payload(data, sfreq, aligned_names, matrices["pcc"], hidden_channels)
     warnings.append("Multistate prediction used TASK+EC+EO files; the brain network visualization uses TASK connectivity as the display anchor.")
     return {
         "schema": "eeg_mdd_electron_inference_v1",
@@ -811,17 +900,20 @@ def infer(args: argparse.Namespace) -> dict[str, Any]:
         top_edges_n=int(args.top_edges),
         hidden_channels=hidden_channels,
     )
+    visual["signals"] = _signal_visual_payload(data, sfreq, aligned_names, matrices["pcc"], hidden_channels)
+    profile_meta = _profile(args)
+    use_profile_meta = args.custom_model_path is None
     return {
         "schema": "eeg_mdd_electron_inference_v1",
         "model": {
             "profile": getattr(model, "profile_key", args.model_profile),
-            "display": getattr(model, "profile_display", _profile(args)["display"]),
-            "name": _profile(args)["name"],
-            "sourceResult": getattr(model, "source_result", _profile(args)["source_result"]),
+            "display": profile_meta["display"] if use_profile_meta else getattr(model, "profile_display", profile_meta["display"]),
+            "name": profile_meta["name"],
+            "sourceResult": profile_meta["source_result"] if use_profile_meta else getattr(model, "source_result", profile_meta["source_result"]),
             "productionFit": "same features and weighted-star readout, fitted on all available labeled reference subjects",
             "trainSubjectCount": getattr(model, "train_subject_count", None),
             "trainLabelCounts": getattr(model, "train_label_counts", {}),
-            "note": getattr(model, "note", _profile(args)["note"]),
+            "note": profile_meta["note"] if use_profile_meta else getattr(model, "note", profile_meta["note"]),
         },
         "file": {
             "path": str(edf_path),

@@ -25,6 +25,7 @@
         <div class="tab-track">
           <button id="historyButton" class="tab-button" data-tab="history">历史记录</button><span class="tab-separator">丨</span>
           <button class="tab-button active" data-tab="network">脑网络连接图</button><span class="tab-separator">丨</span>
+          <button class="tab-button" data-tab="signals">信号特征</button><span class="tab-separator">丨</span>
           <button class="tab-button" data-tab="contrib">贡献数据</button><span class="tab-separator">丨</span>
           <button class="tab-button" data-tab="edges">连接强度</button>
         </div>
@@ -54,6 +55,11 @@
     </div>
     <main class="workspace">
       <section id="tab-network" class="tab-page active"><section class="panel graph-panel"><div id="networkChart" class="brain-scene"><button id="resetView" class="reset-view-button" type="button" title="重置视角">重置</button><div id="networkLegend" class="network-legend"><b>图例</b><span><i class="legend-node red"></i>节点红色：通道特征偏向推高 MDD</span><span><i class="legend-node green"></i>节点绿色：通道特征偏向正常</span><span><i class="legend-edge red"></i>边红色：连接贡献偏向推高 MDD</span><span><i class="legend-edge green"></i>边绿色：连接贡献偏向正常</span><small>边粗细/亮度表示综合强度；连接值正负仅表示 PCC 相关方向。右键关闭图例。</small></div><div id="nodeTooltip" class="node-tooltip hidden"></div></div></section></section>
+      <section id="tab-signals" class="tab-page"><div class="content-page"><div class="signal-grid">
+        <section class="panel signal-panel-wide"><div class="panel-head"><h3>EEG时域波形</h3><span>推理输入的前8秒多通道波形，单位μV</span></div><div id="waveformChart" class="chart signal-chart"></div></section>
+        <section class="panel"><div class="panel-head"><h3>功率谱密度</h3><span>Welch估计，0.5-45 Hz</span></div><div id="psdChart" class="chart signal-chart"></div></section>
+        <section class="panel"><div class="panel-head"><h3>PCC热力图</h3><span>通道间皮尔逊相关系数</span></div><div id="pccHeatmapChart" class="chart signal-chart"></div></section>
+      </div></div></section>
       <section id="tab-contrib" class="tab-page"><div class="content-page"><div class="contrib-grid">
         <section class="panel"><div class="panel-head"><h3>脑区贡献</h3><span>各脑区特征对模型输出的方向和强度</span></div><div id="regionChart" class="chart"></div></section>
         <section class="panel"><div class="panel-head"><h3>左右半球</h3><span>同一脑区内左右侧通道影响度对比</span></div><div id="asymChart" class="chart"></div></section>
@@ -71,7 +77,7 @@
 export function queryElements() {
   const $ = (id) => document.getElementById(id);
   const els = {
-    appShell: $('appShell'), prevTab: $('prevTab'), nextTab: $('nextTab'), modelSelect: $('modelSelect'), modelSelectedText: $('modelSelectedText'), modelMenu: $('modelMenu'), customModelPath: $('customModelPath'), pickFile: $('pickFile'), historyButton: $('historyButton'), historyList: $('historyList'), edfStateSlots: $('edfStateSlots'), runInference: $('runInference'), progressWrap: $('progressWrap'), progressText: $('progressText'), progressValue: $('progressValue'), progressBar: $('progressBar'), fileName: $('fileName'), fileSource: $('fileSource'), fileMeta: $('fileMeta'), riskLabel: $('riskLabel'), probValue: $('probValue'), probBar: $('probBar'), consolePanel: $('consolePanel'), consoleHead: $('consoleHead'), consoleClose: $('consoleClose'), consoleOutput: $('consoleOutput'), consoleForm: $('consoleForm'), consoleInput: $('consoleInput'), textTooltip: $('textTooltip'), edgeRows: $('edgeRows'), networkChart: $('networkChart'), resetView: $('resetView'), networkLegend: $('networkLegend'), nodeTooltip: $('nodeTooltip'), regionChart: $('regionChart'), asymChart: $('asymChart'), temporalChart: $('temporalChart')
+    appShell: $('appShell'), prevTab: $('prevTab'), nextTab: $('nextTab'), modelSelect: $('modelSelect'), modelSelectedText: $('modelSelectedText'), modelMenu: $('modelMenu'), customModelPath: $('customModelPath'), pickFile: $('pickFile'), historyButton: $('historyButton'), historyList: $('historyList'), edfStateSlots: $('edfStateSlots'), runInference: $('runInference'), progressWrap: $('progressWrap'), progressText: $('progressText'), progressValue: $('progressValue'), progressBar: $('progressBar'), fileName: $('fileName'), fileSource: $('fileSource'), fileMeta: $('fileMeta'), riskLabel: $('riskLabel'), probValue: $('probValue'), probBar: $('probBar'), consolePanel: $('consolePanel'), consoleHead: $('consoleHead'), consoleClose: $('consoleClose'), consoleOutput: $('consoleOutput'), consoleForm: $('consoleForm'), consoleInput: $('consoleInput'), textTooltip: $('textTooltip'), edgeRows: $('edgeRows'), networkChart: $('networkChart'), resetView: $('resetView'), networkLegend: $('networkLegend'), nodeTooltip: $('nodeTooltip'), waveformChart: $('waveformChart'), psdChart: $('psdChart'), pccHeatmapChart: $('pccHeatmapChart'), regionChart: $('regionChart'), asymChart: $('asymChart'), temporalChart: $('temporalChart')
   };
   const dataSummary = document.createElement('div');
   dataSummary.className = 'data-summary';

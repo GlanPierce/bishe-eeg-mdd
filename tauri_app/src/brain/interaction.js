@@ -97,7 +97,7 @@ export function installInteraction(BrainScene) {
         if (![0, 1, 2].includes(event.button)) return;
         this.cancelBrainFocusAnimation();
         this.brain.inertia = null;
-        const isPan = event.button === 1 || event.button === 2 || event.shiftKey;
+        const isPan = event.button === 0 || event.shiftKey;
         this.brain.drag = {
           x: event.clientX,
           y: event.clientY,
@@ -139,10 +139,11 @@ export function installInteraction(BrainScene) {
           this.resetBrainView();
           return;
         }
-        if (wasClick) {
+        if (wasClick && drag.button === 0) {
           this.handleBrainClick(event);
           return;
         }
+        if (wasClick) return;
         this.startDragInertia(drag);
       };
       [dom, rendererDom].filter(Boolean).forEach((target) => {
@@ -258,7 +259,7 @@ export function installInteraction(BrainScene) {
           region: node.region || meta.region,
           ...pos,
           size: 7 + 13 * influenceRatio,
-          color: Number(node.contribution || node.value || 0) < 0 ? '#2563eb' : '#dc2626'
+          color: Number(node.contribution || node.value || 0) < 0 ? '#93c69b' : '#d8948d'
         };
       });
       const nodeById = new Map(nodes.map((node) => [node.name, node]));

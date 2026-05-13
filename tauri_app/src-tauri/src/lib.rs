@@ -11,7 +11,7 @@ use serde::Serialize;
 #[derive(Serialize)]
 struct AppModelEntry {
     key: &'static str,
-    label: &'static str,
+    label: String,
     folder: &'static str,
     path: String,
     console_only: bool,
@@ -54,24 +54,24 @@ fn model_profiles() -> [(&'static str, &'static str, &'static str, bool, Option<
     [
         (
             "clean",
-            "ExplicitRegionTemporalWeightedStarGNN",
+            "ExplicitRegionTemporalWeightedStarGNN（61人TASK主基准）",
             "ExplicitRegionTemporalWeightedStarGNN",
             false,
             None,
         ),
         (
             "targeted_repair",
-            "ExplicitRegionTemporalWeightedStarGNN + targeted artifact repair",
+            "ExplicitRegionTemporalWeightedStarGNN（定向伪迹修复变体）",
             "ExplicitRegionTemporalWeightedStarGNN_targeted_artifact_repair",
             false,
             None,
         ),
         (
             "taskonly61_multistate_arch",
-            "Multistate explicit region-temporal weighted-star model",
+            "Multistate explicit region-temporal weighted-star model（TASK+EC+EO）",
             "Multistate_explicit_region_temporal_weighted_star_model",
             true,
-            Some("测试用 / Console only"),
+            None,
         ),
     ]
 }
@@ -83,11 +83,11 @@ fn list_model_folder() -> Result<Vec<AppModelEntry>, String> {
     fs::create_dir_all(&root).map_err(|err| format!("Failed to create model folder: {err}"))?;
     let models = model_profiles()
         .into_iter()
-        .filter_map(|(key, label, folder, console_only, badge)| {
+        .filter_map(|(key, _label, folder, console_only, badge)| {
             let path = root.join(folder).join("model.pkl");
             path.exists().then(|| AppModelEntry {
                 key,
-                label,
+                label: folder.to_string(),
                 folder,
                 path: path.to_string_lossy().to_string(),
                 console_only,
