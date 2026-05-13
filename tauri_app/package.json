@@ -1,6 +1,6 @@
 {
   "name": "eeg-mdd-tauri-preview",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Lightweight Tauri preview for EEG MDD risk inference.",
